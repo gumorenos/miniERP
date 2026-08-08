@@ -14,21 +14,25 @@ Pilot authentication uses two layers:
 - `POST /api/auth/logout` revokes the current session.
 - Disabled users cannot use existing sessions.
 
-## First pilot user
+## First pilot user / password rotation
 
-Production does not run demo seed data. Create the initial user explicitly from the app container/environment after migrations:
+Production does not run demo seed data. The regular `app` service intentionally does **not** receive `APP_USER_PASSWORD`.
+
+After migrations and the database service are available, create the initial user with the one-shot operations service:
 
 ```sh
-npx tsx scripts/create-user.ts
+docker compose --env-file .env.production -f compose.prod.yml --profile ops run --rm bootstrap-user
 ```
 
-Required environment variables:
+Required values in the server-local `.env.production` file:
 
 - `APP_USER_EMAIL`
 - `APP_USER_PASSWORD` (minimum 12 characters)
 - `APP_BUSINESS_NAME`
 
-The command is idempotent by email: if the user exists, it rotates the password and reactivates the account instead of creating another business.
+The command is idempotent by email. If the user already exists, it rotates the password, reactivates the account and revokes all existing sessions. It does not create another business.
+
+The bootstrap container exits after the operation, so the application container does not retain the bootstrap password in its environment.
 
 ## Development migration
 
