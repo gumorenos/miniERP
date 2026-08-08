@@ -1,0 +1,60 @@
+{
+  "name": "minierp",
+  "version": "1.0.0",
+  "description": "Aplicación web ligera para gestionar la operación de un pequeño taller de confección de prendas con inspiración andina.",
+  "type": "module",
+  "main": "src/server/index.ts",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:api": "tsx watch src/server/index.ts",
+    "start": "tsx src/server/index.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "tsx scripts/e2e-flow.ts",
+    "build": "tsc --noEmit && vite build",
+    "qa": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gumorenos/miniERP.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gumorenos/miniERP/issues"
+  },
+  "homepage": "https://github.com/gumorenos/miniERP#readme",
+  "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.1",
+    "nanoid": "^6.0.1",
+    "pg": "^8.22.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsx": "^4.23.11",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.21.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "eslint": "^10.8.1",
+    "globals": "^17.9.0",
+    "jsdom": "^30.0.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
