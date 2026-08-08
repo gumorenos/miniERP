@@ -89,6 +89,15 @@ export function setToken(token: string) {
 }
 
 export function clearToken() {
+  const token = localStorage.getItem(tokenKey);
+  if (token) {
+    void fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+      keepalive: true
+    }).catch(() => undefined);
+  }
   localStorage.removeItem(tokenKey);
 }
 
