@@ -111,6 +111,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (email: string, password: string) => request<{ token: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) }),
   bootstrap: () => request<Bootstrap>("/api/bootstrap"),
   createCustomer: (payload: Partial<Customer>) => request<Customer>("/api/customers", { method: "POST", body: JSON.stringify(payload) }),
   createOrder: (payload: Record<string, unknown>) => request<OrderDetail>("/api/orders", { method: "POST", body: JSON.stringify(payload) }),
@@ -121,4 +122,3 @@ export const api = {
   sendEmbroidery: (id: string, payload: Record<string, unknown>) => request<OrderDetail>(`/api/orders/${id}/send-embroidery`, { method: "POST", body: JSON.stringify(payload) }),
   receiveEmbroidery: (id: string, jobId: string, actualCost: number) => request<OrderDetail>(`/api/embroidery-jobs/${jobId}/receive`, { method: "POST", body: JSON.stringify({ actualCost }) })
 };
-
