@@ -15,6 +15,6 @@ RUN npm ci
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src ./src
 COPY --from=build /app/migrations ./migrations
+COPY --from=build /app/scripts ./scripts
 EXPOSE 3000
 CMD ["npm", "start"]
-
