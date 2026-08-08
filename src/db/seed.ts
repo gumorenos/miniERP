@@ -41,7 +41,7 @@ export async function seedDevelopment() {
 
   const [purchase] = await db
     .insert(purchases)
-    .values({ businessId: business.id, purchaseDate: new Date().toISOString().slice(0, 10), totalAmount: "203.50", notes: "Datos demo de desarrollo" })
+    .values({ businessId: business.id, purchaseDate: new Date().toISOString().slice(0, 10), totalAmount: "375.00", notes: "Datos demo de desarrollo" })
     .returning();
   const lines = await db
     .insert(purchaseLines)
@@ -94,4 +94,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     })
     .finally(() => pool.end());
 }
-
