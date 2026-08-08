@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/db/client";
+import { sessions } from "../src/db/auth-schema";
 import { businesses, users } from "../src/db/schema";
 import { hashPassword } from "../src/server/auth";
 
@@ -19,8 +20,11 @@ async function main() {
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
 
   if (existing) {
-    await db.update(users).set({ passwordHash, active: true, updatedAt: new Date() }).where(eq(users.id, existing.id));
-    console.log(`User ${email} password updated`);
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ passwordHash, active: true, updatedAt: new Date() }).where(eq(users.id, existing.id));
+      await tx.delete(sessions).where(eq(sessions.userId, existing.id));
+    });
+    console.log(`User ${email} password updated and existing sessions revoked`);
     return;
   }
 
