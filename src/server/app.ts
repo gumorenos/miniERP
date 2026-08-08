@@ -23,14 +23,15 @@ import {
 import { assertKnownOrderStatus, assertOrderTransition, calculateOrderFinancials, embroideryOverdueDays } from "../domain/order";
 import { orderStatuses, paymentMethods, sizes, type OrderStatus } from "../domain/types";
 import { seedDevelopment } from "../db/seed";
+import { authenticateToken, createSession, revokeSession, verifyPassword } from "./auth";
 
 type AppContext = {
   Variables: {
     user: { id: string; businessId: string; email: string; name: string };
+    authToken: string;
   };
 };
 
-const tokenStore = new Map<string, { id: string; businessId: string; email: string; name: string }>();
 const isoDate = () => new Date().toISOString().slice(0, 10);
 const asNumber = (value: unknown) => (value == null ? 0 : Number(value));
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -89,6 +90,10 @@ const receiveEmbroiderySchema = z.object({
   notes: z.string().optional().nullable()
 });
 
+function bearerToken(header: string | undefined) {
+  return header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+}
+
 function publicApp() {
   const app = new Hono<AppContext>();
 
@@ -102,6 +107,7 @@ function publicApp() {
   });
 
   app.post("/api/dev/seed", async (c) => {
+    if (process.env.NODE_ENV === "production") return c.json({ error: "No encontrado" }, 404);
     await seedDevelopment();
     return c.json({ ok: true });
   });
@@ -109,22 +115,26 @@ function publicApp() {
   app.post("/api/auth/login", async (c) => {
     const body = loginSchema.parse(await c.req.json());
     const user = await db.query.users.findFirst({ where: and(eq(users.email, body.email), eq(users.active, true)) });
-    if (!user || user.passwordHash !== body.password) {
+    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
       return c.json({ error: "Credenciales invalidas" }, 401);
     }
-    const token = crypto.randomUUID();
-    const session = { id: user.id, businessId: user.businessId, email: user.email, name: user.name };
-    tokenStore.set(token, session);
-    return c.json({ token, user: session });
+    const authUser = { id: user.id, businessId: user.businessId, email: user.email, name: user.name };
+    const session = await createSession(authUser);
+    return c.json({ token: session.token, expiresAt: session.expiresAt, user: authUser });
   });
 
   app.use("/api/*", async (c, next) => {
-    const header = c.req.header("authorization") ?? "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-    const session = tokenStore.get(token);
-    if (!session) return c.json({ error: "No autenticado" }, 401);
-    c.set("user", session);
+    const token = bearerToken(c.req.header("authorization"));
+    const user = await authenticateToken(token);
+    if (!user) return c.json({ error: "No autenticado" }, 401);
+    c.set("user", user);
+    c.set("authToken", token);
     return next();
+  });
+
+  app.post("/api/auth/logout", async (c) => {
+    await revokeSession(c.get("authToken"));
+    return c.json({ ok: true });
   });
 
   app.get("/api/bootstrap", async (c) => {
@@ -350,7 +360,7 @@ async function transitionOrder(orderId: string, from: OrderStatus, to: OrderStat
 
 async function loadProducts(businessId: string) {
   const rows = await db.select().from(products).where(eq(products.businessId, businessId)).orderBy(asc(products.name));
-  const prices = await db.select().from(productSizePrices).where(inArray(productSizePrices.productId, rows.map((p) => p.id)));
+  const prices = rows.length ? await db.select().from(productSizePrices).where(inArray(productSizePrices.productId, rows.map((p) => p.id))) : [];
   return rows.map((product) => ({
     ...product,
     sizePrices: prices.filter((price) => price.productId === product.id)
