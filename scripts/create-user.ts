@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, pool } from "../src/db/client";
 import { sessions } from "../src/db/auth-schema";
 import { businesses, users } from "../src/db/schema";
@@ -20,9 +20,13 @@ async function main() {
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
 
   if (existing) {
+    const revokedAt = new Date();
     await db.transaction(async (tx) => {
-      await tx.update(users).set({ passwordHash, active: true, updatedAt: new Date() }).where(eq(users.id, existing.id));
-      await tx.delete(sessions).where(eq(sessions.userId, existing.id));
+      await tx.update(users).set({ passwordHash, active: true, updatedAt: revokedAt }).where(eq(users.id, existing.id));
+      await tx
+        .update(sessions)
+        .set({ revokedAt })
+        .where(and(eq(sessions.userId, existing.id), isNull(sessions.revokedAt)));
     });
     console.log(`User ${email} password updated and existing sessions revoked`);
     return;
