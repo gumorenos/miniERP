@@ -23,7 +23,7 @@ Key properties:
 - PostgreSQL and the app both have healthchecks.
 - Containers restart unless stopped explicitly.
 - Application sessions are persistent, expiring and revocable in PostgreSQL.
-- The long-running app container does not receive the bootstrap user password.
+- The long-running app container does not receive bootstrap user credentials.
 - Secrets live only in the server-side env file and must not be committed. Set restrictive filesystem permissions on this file.
 
 Recommended exposure path:
@@ -50,17 +50,35 @@ docker compose --env-file .env.production -f compose.prod.yml up --build -d
 docker compose --env-file .env.production -f compose.prod.yml --profile ops run --rm bootstrap-user
 ```
 
-This same command can later rotate that user's password. Password rotation revokes all existing application sessions for that user.
+This same command can later rotate that user's password. Password rotation marks all active sessions revoked while preserving their rows for audit/history.
 
-7. Verify locally on the VPS:
+7. Store the application password in an appropriate password manager and remove/blank it from the server env file when it is not needed for a rotation operation.
+8. Verify locally on the VPS:
 
 ```bash
 curl -fsS http://127.0.0.1:${APP_HOST_PORT}/api/health
 ```
 
-8. Verify login locally, then configure Cloudflare Tunnel and Access.
-9. Only after local health/login passes, attach the protected hostname.
-10. Run the smoke/E2E checklist against the protected hostname.
+9. Verify login locally, then configure Cloudflare Tunnel and Access.
+10. Only after local health/login passes, attach the protected hostname.
+11. Run smoke checks against the protected hostname.
+
+### Production-like E2E QA
+
+Never enable the development seed in production. For a disposable isolated QA database only, create the QA user with `bootstrap-user` and then seed the dedicated E2E fixtures:
+
+```bash
+E2E_FIXTURES_CONFIRM=isolated-qa-db \
+  docker compose --env-file .env.production -f compose.prod.yml --profile qa run --rm qa-fixtures
+```
+
+The fixture service refuses to run without that exact confirmation, requires the target user to exist, and refuses to seed a business that already contains products, materials or orders. Never execute it against the real pilot database.
+
+Then run:
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:${APP_HOST_PORT} npm run test:e2e
+```
 
 ### Upgrade procedure
 
@@ -78,4 +96,4 @@ Keep the previous image/commit identifiable before upgrades. If a release fails 
 
 ## Authentication / exposure policy
 
-Application auth now uses salted `scrypt` password hashes and persistent revocable sessions. Cloudflare Access remains required for the first pilot as defense in depth and to keep the pilot URL restricted to the intended tester.
+Application auth uses salted `scrypt` password hashes and persistent revocable sessions. Cloudflare Access remains required for the first pilot as defense in depth and to keep the pilot URL restricted to the intended tester.
