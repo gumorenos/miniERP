@@ -11,8 +11,9 @@ Pilot authentication uses two layers:
 - Only the SHA-256 hash of that token is stored in PostgreSQL.
 - Sessions expire after `SESSION_TTL_DAYS` (30 days by default).
 - Restarting the app does not invalidate a valid session.
-- `POST /api/auth/logout` revokes the current session.
+- `POST /api/auth/logout` revokes the current session by setting `revoked_at`.
 - Disabled users cannot use existing sessions.
+- Revoked session rows are retained for audit/history instead of being deleted.
 
 ## First pilot user / password rotation
 
@@ -30,9 +31,9 @@ Required values in the server-local `.env.production` file:
 - `APP_USER_PASSWORD` (minimum 12 characters)
 - `APP_BUSINESS_NAME`
 
-The command is idempotent by email. If the user already exists, it rotates the password, reactivates the account and revokes all existing sessions. It does not create another business.
+The command is idempotent by email. If the user already exists, it rotates the password, reactivates the account and marks all currently active sessions revoked. It does not create another business and it preserves revoked session rows for audit.
 
-The bootstrap container exits after the operation, so the application container does not retain the bootstrap password in its environment.
+The bootstrap container exits after the operation, so the application container does not retain the bootstrap password in its environment. For the real pilot, store the user password in an appropriate password manager and remove/blank it from the server env file when it is not needed for a rotation operation.
 
 ## Development migration
 
