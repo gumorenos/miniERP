@@ -26,9 +26,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      APP_USER_EMAIL: ${APP_USER_EMAIL}
-      APP_USER_PASSWORD: ${APP_USER_PASSWORD}
-      APP_BUSINESS_NAME: ${APP_BUSINESS_NAME}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
     command: sh -c "npm run db:migrate && npm start"
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-3010}:3000"
@@ -38,6 +36,39 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    networks:
+      - minierp_internal
+
+  bootstrap-user:
+    build: .
+    profiles: ["ops"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_USER_EMAIL: ${APP_USER_EMAIL}
+      APP_USER_PASSWORD: ${APP_USER_PASSWORD}
+      APP_BUSINESS_NAME: ${APP_BUSINESS_NAME}
+    command: npx tsx scripts/create-user.ts
+    networks:
+      - minierp_internal
+
+  qa-fixtures:
+    build: .
+    profiles: ["qa"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_USER_EMAIL: ${APP_USER_EMAIL}
+      E2E_FIXTURES_CONFIRM: ${E2E_FIXTURES_CONFIRM:-}
+    command: npx tsx scripts/seed-e2e-fixtures.ts
     networks:
       - minierp_internal
 

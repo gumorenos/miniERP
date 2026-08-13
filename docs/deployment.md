@@ -22,7 +22,9 @@ Key properties:
 - Database migrations run before app startup.
 - PostgreSQL and the app both have healthchecks.
 - Containers restart unless stopped explicitly.
-- Secrets live only in the server-side env file and must not be committed.
+- Application sessions are persistent, expiring and revocable in PostgreSQL.
+- The long-running app container does not receive bootstrap user credentials.
+- Secrets live only in the server-side env file and must not be committed. Set restrictive filesystem permissions on this file.
 
 Recommended exposure path:
 
@@ -30,32 +32,68 @@ Recommended exposure path:
 
 For the first pilot, protect the hostname with Cloudflare Access so only the intended tester can reach the app. Do not open the application or PostgreSQL port directly in the VPS firewall.
 
-### Deploy procedure
+### Initial deploy procedure
 
 1. Confirm branch/commit to deploy and clean working tree.
-2. Back up the PostgreSQL volume/database if this is an upgrade.
-3. Create/update `.env.production` with strong unique secrets.
-4. Run QA gates before deployment.
-5. Build and start:
+2. Create `.env.production` with strong unique secrets and set restrictive permissions (for example `chmod 600 .env.production`).
+3. Run QA gates before deployment.
+4. Build and start the application/database:
 
 ```bash
 docker compose --env-file .env.production -f compose.prod.yml up --build -d
 ```
 
-6. Wait until both services report healthy.
-7. Verify locally on the VPS:
+5. Wait until both `db` and `app` report healthy.
+6. Create the initial application user with the ephemeral operations service:
+
+```bash
+docker compose --env-file .env.production -f compose.prod.yml --profile ops run --rm bootstrap-user
+```
+
+This same command can later rotate that user's password. Password rotation marks all active sessions revoked while preserving their rows for audit/history.
+
+7. Store the application password in an appropriate password manager and remove/blank it from the server env file when it is not needed for a rotation operation.
+8. Verify locally on the VPS:
 
 ```bash
 curl -fsS http://127.0.0.1:${APP_HOST_PORT}/api/health
 ```
 
-8. Only after local health passes, connect the Cloudflare Tunnel/Access hostname.
-9. Run the smoke/E2E checklist against the protected hostname.
+9. Verify login locally, then configure Cloudflare Tunnel and Access.
+10. Only after local health/login passes, attach the protected hostname.
+11. Run smoke checks against the protected hostname.
+
+### Production-like E2E QA
+
+Never enable the development seed in production. For a disposable isolated QA database only, create the QA user with `bootstrap-user` and then seed the dedicated E2E fixtures:
+
+```bash
+E2E_FIXTURES_CONFIRM=isolated-qa-db \
+  docker compose --env-file .env.production -f compose.prod.yml --profile qa run --rm qa-fixtures
+```
+
+The fixture service refuses to run without that exact confirmation, requires the target user to exist, and refuses to seed a business that already contains products, materials or orders. Never execute it against the real pilot database.
+
+Then run:
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:${APP_HOST_PORT} npm run test:e2e
+```
+
+### Upgrade procedure
+
+1. Confirm the exact validated commit and a clean working tree.
+2. Back up PostgreSQL before applying new migrations.
+3. Pull/checkout the validated commit.
+4. Run code QA gates.
+5. Rebuild/restart with `compose.prod.yml`; migrations run before the app starts.
+6. Confirm both services healthy and run local smoke tests.
+7. Confirm the protected hostname after local validation.
 
 ### Rollback
 
-Keep the previous image/commit identifiable before upgrades. If a release fails after migration, stop the new app, restore the database backup when required, checkout the previous validated commit, rebuild and re-run the health checks.
+Keep the previous image/commit identifiable before upgrades. If a release fails after migration, stop the new app, restore the database backup when required, checkout the previous validated commit, rebuild and re-run health/login checks before restoring traffic.
 
-## Current authentication caveat
+## Authentication / exposure policy
 
-Phase 1 application authentication is still MVP-grade. The pilot hostname MUST therefore remain behind Cloudflare Access until application-level password hashing and persistent sessions are implemented and validated. Cloudflare Access is a defense-in-depth requirement for the pilot, not a replacement for the planned application-auth hardening.
+Application auth uses salted `scrypt` password hashes and persistent revocable sessions. Cloudflare Access remains required for the first pilot as defense in depth and to keep the pilot URL restricted to the intended tester.

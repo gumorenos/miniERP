@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "./client";
 import { businesses, embroideryProviders, materials, productSizePrices, products, purchaseLines, purchases, stockMovements, users } from "./schema";
 import { sizes } from "../domain/types";
+import { hashPassword } from "../server/auth";
 
 export async function seedDevelopment() {
   if (process.env.NODE_ENV === "production") {
@@ -10,10 +11,16 @@ export async function seedDevelopment() {
   }
 
   const email = process.env.APP_USER_EMAIL ?? "admin@example.test";
+  const password = process.env.APP_USER_PASSWORD ?? "change-me-dev";
   const businessName = process.env.APP_BUSINESS_NAME ?? "Taller demo";
   const existingUser = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existingUser) {
-    console.log("Demo seed already present");
+    if (!existingUser.passwordHash.startsWith("scrypt$")) {
+      await db.update(users).set({ passwordHash: await hashPassword(password), updatedAt: new Date() }).where(eq(users.id, existingUser.id));
+      console.log("Demo user password upgraded to scrypt");
+    } else {
+      console.log("Demo seed already present");
+    }
     return;
   }
 
@@ -22,7 +29,7 @@ export async function seedDevelopment() {
     businessId: business.id,
     name: "Usuaria demo",
     email,
-    passwordHash: process.env.APP_USER_PASSWORD ?? "change-me-dev",
+    passwordHash: await hashPassword(password),
     active: true
   });
 

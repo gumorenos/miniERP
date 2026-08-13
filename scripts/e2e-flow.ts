@@ -23,14 +23,23 @@ function check(condition: unknown, message: string): asserts condition {
 
 async function main() {
   await request("/api/health");
-  const login = await request<{ token: string }>("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
+  const login = await request<{ token: string }>("/api/auth/login", undefined, {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
   const token = login.token;
   const boot = await request<any>("/api/bootstrap", token);
   const materialBefore = boot.materials.find((item: any) => item.category === "FABRIC");
-  check(materialBefore, "missing demo fabric");
-
-  const customer = await request<any>("/api/customers", token, { method: "POST", body: JSON.stringify({ name: `Cliente E2E ${Date.now()}` }) });
   const product = boot.products[0];
+  const provider = boot.providers[0];
+  check(materialBefore, "missing E2E fabric fixture; seed isolated QA fixtures before running this flow");
+  check(product, "missing E2E product fixture; seed isolated QA fixtures before running this flow");
+  check(provider, "missing E2E embroidery provider fixture; seed isolated QA fixtures before running this flow");
+
+  const customer = await request<any>("/api/customers", token, {
+    method: "POST",
+    body: JSON.stringify({ name: `Cliente E2E ${Date.now()}` })
+  });
   const order = await request<any>("/api/orders", token, {
     method: "POST",
     body: JSON.stringify({
@@ -45,10 +54,16 @@ async function main() {
   });
   check(order.status === "ORDER_RECEIVED", "order not created in initial status");
 
-  let detail = await request<any>(`/api/orders/${order.id}/payments`, token, { method: "POST", body: JSON.stringify({ amount: 100, method: "YAPE", notes: "Adelanto E2E" }) });
+  let detail = await request<any>(`/api/orders/${order.id}/payments`, token, {
+    method: "POST",
+    body: JSON.stringify({ amount: 100, method: "YAPE", notes: "Adelanto E2E" })
+  });
   check(detail.payments.length === 1 && detail.financials.balance === 220, "payment did not update balance from movement history");
 
-  await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "READY_TO_CUT" }) });
+  await request(`/api/orders/${order.id}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ status: "READY_TO_CUT" })
+  });
   detail = await request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) });
   check(detail.status === "CUT", "cut transition failed");
   const afterFirstCut = await request<any>("/api/bootstrap", token);
@@ -60,7 +75,6 @@ async function main() {
   const materialAfterSecondCut = afterSecondCut.materials.find((item: any) => item.id === materialBefore.id);
   check(materialAfterSecondCut.currentQuantity === materialAfterFirstCut.currentQuantity, "second cut discounted stock again");
 
-  const provider = boot.providers[0];
   detail = await request<any>(`/api/orders/${order.id}/send-embroidery`, token, {
     method: "POST",
     body: JSON.stringify({
@@ -74,14 +88,32 @@ async function main() {
   check(lateDashboard.dashboard.lateEmbroideryJobs.length > 0, "late embroidery was not derived");
 
   const job = detail.embroideryJobs[0];
-  detail = await request<any>(`/api/embroidery-jobs/${job.id}/receive`, token, { method: "POST", body: JSON.stringify({ actualCost: 90 }) });
+  detail = await request<any>(`/api/embroidery-jobs/${job.id}/receive`, token, {
+    method: "POST",
+    body: JSON.stringify({ actualCost: 90 })
+  });
   check(detail.status === "EMBROIDERY_RECEIVED", "embroidery receive did not update order");
-  await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "ASSEMBLY" }) });
-  await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "READY_FOR_DELIVERY" }) });
-  detail = await request<any>(`/api/orders/${order.id}/payments`, token, { method: "POST", body: JSON.stringify({ amount: 220, method: "CASH", notes: "Saldo E2E" }) });
+  await request(`/api/orders/${order.id}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ status: "ASSEMBLY" })
+  });
+  await request(`/api/orders/${order.id}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ status: "READY_FOR_DELIVERY" })
+  });
+  detail = await request<any>(`/api/orders/${order.id}/payments`, token, {
+    method: "POST",
+    body: JSON.stringify({ amount: 220, method: "CASH", notes: "Saldo E2E" })
+  });
   check(detail.payments.length === 2 && detail.financials.totalPaid === 320 && detail.financials.balance === 0, "balance payment overwrote or miscalculated payment history");
-  await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "DELIVERED" }) });
-  detail = await request<any>(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "CLOSED" }) });
+  await request(`/api/orders/${order.id}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ status: "DELIVERED" })
+  });
+  detail = await request<any>(`/api/orders/${order.id}/transition`, token, {
+    method: "POST",
+    body: JSON.stringify({ status: "CLOSED" })
+  });
   check(detail.status === "CLOSED", "order did not close");
   check(detail.financials.costForMargin > 0 && detail.financials.margin > 0, "cost/margin was not calculated");
 
