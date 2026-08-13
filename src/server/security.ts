@@ -10,6 +10,13 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(12).max(128)
 });
 
+const customerCreateSchema = z.object({
+  name: z.string().trim().min(2),
+  phone: z.string().optional().nullable(),
+  instagramHandle: z.string().optional().nullable(),
+  notes: z.string().optional().nullable()
+});
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -68,6 +75,14 @@ export async function secureFetch(request: Request) {
     const user = await authenticateToken(token);
     if (user?.mustChangePassword) {
       return json({ error: "Debes cambiar tu contraseña antes de continuar", code: "PASSWORD_CHANGE_REQUIRED" }, 428);
+    }
+  }
+
+  if (url.pathname === "/api/customers" && request.method === "POST" && token) {
+    const user = await authenticateToken(token);
+    if (user) {
+      const parsed = customerCreateSchema.safeParse(await request.clone().json().catch(() => null));
+      if (!parsed.success) return json({ error: "Ingresa un nombre de al menos 2 caracteres" }, 400);
     }
   }
 
