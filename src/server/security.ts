@@ -5,6 +5,7 @@ import { sessions } from "../db/auth-schema";
 import { users } from "../db/schema";
 import { app } from "./app";
 import { authenticateToken, hashPassword, verifyPassword } from "./auth";
+import { handleCatalogMutation, isCatalogMutation } from "./catalog";
 
 const changePasswordSchema = z.object({
   newPassword: z.string().min(12).max(128)
@@ -69,6 +70,15 @@ export async function secureFetch(request: Request) {
     });
 
     return json({ ok: true, reauthenticate: true });
+  }
+
+  if (isCatalogMutation(request)) {
+    const user = await authenticateToken(token);
+    if (!user) return json({ error: "No autenticado" }, 401);
+    if (user.mustChangePassword) {
+      return json({ error: "Debes cambiar tu contraseña antes de continuar", code: "PASSWORD_CHANGE_REQUIRED" }, 428);
+    }
+    return handleCatalogMutation(request, user);
   }
 
   if (url.pathname.startsWith("/api/") && !passwordChangeAllowlist.has(url.pathname) && token) {
