@@ -51,6 +51,7 @@ export const products = pgTable("products", {
   name: text("name").notNull(),
   type: text("type").notNull(),
   baseSalePrice: numeric("base_sale_price", { precision: 12, scale: 2 }).notNull(),
+  leadTimeDays: integer("lead_time_days").default(25).notNull(),
   defaultFabricMaterialId: uuid("default_fabric_material_id").references(() => materials.id),
   defaultFabricQtyMeters: numeric("default_fabric_qty_meters", { precision: 12, scale: 3 }),
   defaultClosureMaterialId: uuid("default_closure_material_id").references(() => materials.id),
