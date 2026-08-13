@@ -7,6 +7,23 @@
     input.dispatchEvent(new Event("input", { bubbles: true }));
   };
 
+  const prepareLoginFields = () => {
+    const inputs = [...document.querySelectorAll(".login input")].filter((input) => input instanceof HTMLInputElement);
+    const email = inputs.find((input) => input.type !== "password");
+    const password = inputs.find((input) => input.type === "password");
+    if (email) {
+      email.id ||= "login-email";
+      email.name ||= "email";
+      email.autocomplete = "username";
+      email.inputMode = "email";
+    }
+    if (password) {
+      password.id ||= "login-password";
+      password.name ||= "password";
+      password.autocomplete = "current-password";
+    }
+  };
+
   const scrubDemoDefaults = () => {
     document.querySelectorAll(".login input").forEach((input) => {
       if (!(input instanceof HTMLInputElement)) return;
@@ -38,13 +55,15 @@
     if (session.mustChangePassword) location.replace("/change-password.html");
   };
 
-  const observer = new MutationObserver(() => {
+  const syncPilotUi = () => {
+    prepareLoginFields();
     scrubDemoDefaults();
     showPasswordChanged();
-  });
+  };
+
+  const observer = new MutationObserver(syncPilotUi);
 
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  scrubDemoDefaults();
-  showPasswordChanged();
+  syncPilotUi();
   void enforcePendingPasswordChange();
 })();
