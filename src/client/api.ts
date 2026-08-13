@@ -118,9 +118,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function login(email: string, password: string) {
+  const result = await request<{ token: string }>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+  setToken(result.token);
+  const session = await request<{ mustChangePassword: boolean }>("/api/auth/session");
+  if (session.mustChangePassword) window.location.replace("/change-password.html");
+  return result;
+}
+
 export const api = {
-  login: (email: string, password: string) => request<{ token: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login,
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) }),
+  session: () => request<{ mustChangePassword: boolean }>("/api/auth/session"),
+  changePassword: (newPassword: string) => request<{ ok: true; reauthenticate: true }>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ newPassword })
+  }),
   bootstrap: () => request<Bootstrap>("/api/bootstrap"),
   createCustomer: (payload: Partial<Customer>) => request<Customer>("/api/customers", { method: "POST", body: JSON.stringify(payload) }),
   createOrder: (payload: Record<string, unknown>) => request<OrderDetail>("/api/orders", { method: "POST", body: JSON.stringify(payload) }),

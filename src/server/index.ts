@@ -1,9 +1,8 @@
 import { serve } from "@hono/node-server";
-import { app } from "./app";
+import { secureFetch } from "./security";
 
 const port = Number(process.env.PORT ?? 3000);
 
-serve({ fetch: app.fetch, port }, (info) => {
+serve({ fetch: secureFetch, port }, (info) => {
   console.log(`miniERP listening on http://localhost:${info.port}`);
 });
-

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { sessions } from "../db/auth-schema";
 import { users } from "../db/schema";
@@ -7,7 +7,13 @@ import { users } from "../db/schema";
 const KEY_LENGTH = 64;
 const SESSION_TTL_DAYS = Math.max(1, Number(process.env.SESSION_TTL_DAYS ?? 30));
 
-export type AuthUser = { id: string; businessId: string; email: string; name: string };
+export type AuthUser = {
+  id: string;
+  businessId: string;
+  email: string;
+  name: string;
+  mustChangePassword?: boolean;
+};
 
 export async function hashPassword(password: string) {
   const salt = randomBytes(16);
@@ -25,6 +31,12 @@ export async function verifyPassword(password: string, stored: string) {
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export async function passwordChangeRequired(userId: string) {
+  const result = await db.execute(sql`select must_change_password from users where id = ${userId} limit 1`);
+  const row = result.rows[0] as { must_change_password?: boolean } | undefined;
+  return row?.must_change_password === true;
 }
 
 export async function createSession(user: AuthUser) {
@@ -51,7 +63,13 @@ export async function authenticateToken(token: string): Promise<AuthUser | null>
     .limit(1);
   if (!row) return null;
   await db.update(sessions).set({ lastSeenAt: now }).where(eq(sessions.id, row.sessionId));
-  return { id: row.userId, businessId: row.businessId, email: row.email, name: row.name };
+  return {
+    id: row.userId,
+    businessId: row.businessId,
+    email: row.email,
+    name: row.name,
+    mustChangePassword: await passwordChangeRequired(row.userId)
+  };
 }
 
 export async function revokeSession(token: string) {
