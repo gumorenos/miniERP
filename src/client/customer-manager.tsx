@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { calculateCustomerMetrics } from "../domain/workshop";
 import { api, type Bootstrap, type Customer, type OrderDetail } from "./api";
 
-const closedStatuses = new Set(["DELIVERED", "CLOSED", "CANCELLED"]);
 const money = (value: number | string | null | undefined) => `S/ ${Number(value ?? 0).toFixed(2)}`;
 
 export function CustomerManager({
@@ -17,7 +17,6 @@ export function CustomerManager({
   const [history, setHistory] = useState<OrderDetail[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
-
   const selected = data.customers.find((customer) => customer.id === selectedId) ?? null;
 
   useEffect(() => {
@@ -33,8 +32,7 @@ export function CustomerManager({
     setHistoryError("");
     Promise.all(candidates.map((order) => api.getOrder(order.id)))
       .then((orders) => {
-        if (cancelled) return;
-        setHistory(orders.filter((order) => order.customer.id === selected.id));
+        if (!cancelled) setHistory(orders.filter((order) => order.customer.id === selected.id));
       })
       .catch((error) => {
         if (!cancelled) setHistoryError(error instanceof Error ? error.message : "No se pudo cargar el historial.");
@@ -47,27 +45,12 @@ export function CustomerManager({
   }, [selectedId, selected?.id, selected?.name, data.orders]);
 
   if (selected) {
-    return <CustomerProfile
-      customer={selected}
-      history={history}
-      loading={loadingHistory}
-      error={historyError}
-      onBack={() => setSelectedId(null)}
-      onOpenOrder={onOpenOrder}
-    />;
+    return <CustomerProfile customer={selected} history={history} loading={loadingHistory} error={historyError} onBack={() => setSelectedId(null)} onOpenOrder={onOpenOrder} />;
   }
-
   return <CustomerList data={data} onChanged={onChanged} onSelect={setSelectedId} />;
 }
 
-function CustomerProfile({
-  customer,
-  history,
-  loading,
-  error,
-  onBack,
-  onOpenOrder
-}: {
+function CustomerProfile({ customer, history, loading, error, onBack, onOpenOrder }: {
   customer: Customer;
   history: OrderDetail[];
   loading: boolean;
@@ -75,23 +58,12 @@ function CustomerProfile({
   onBack: () => void;
   onOpenOrder: (id: string) => Promise<void> | void;
 }) {
-  const metrics = useMemo(() => {
-    const totalSales = history.reduce((sum, order) => sum + Number(order.financials.agreedTotalPrice), 0);
-    const totalPaid = history.reduce((sum, order) => sum + Number(order.financials.totalPaid), 0);
-    const activeOrders = history.filter((order) => !closedStatuses.has(order.status)).length;
-    const dates = history
-      .map((order) => (order as unknown as { orderDate?: string }).orderDate)
-      .filter((value): value is string => Boolean(value))
-      .sort()
-      .reverse();
-    return {
-      totalSales,
-      totalPaid,
-      balance: totalSales - totalPaid,
-      activeOrders,
-      lastOrderDate: dates[0] ?? null
-    };
-  }, [history]);
+  const metrics = useMemo(() => calculateCustomerMetrics(history.map((order) => ({
+    status: order.status,
+    orderDate: (order as unknown as { orderDate?: string }).orderDate,
+    agreedTotalPrice: Number(order.financials.agreedTotalPrice),
+    totalPaid: Number(order.financials.totalPaid)
+  }))), [history]);
 
   return <div className="stack">
     <section>
@@ -100,7 +72,7 @@ function CustomerProfile({
       <p className="muted">{customer.phone ?? "Sin teléfono"} · {customer.instagramHandle ?? "Sin Instagram"}</p>
       {customer.notes && <p>{customer.notes}</p>}
       <div className="metrics">
-        <ProfileMetric label="Pedidos" value={history.length} />
+        <ProfileMetric label="Pedidos" value={metrics.totalOrders} />
         <ProfileMetric label="Activos" value={metrics.activeOrders} />
         <ProfileMetric label="Vendido" value={money(metrics.totalSales)} />
         <ProfileMetric label="Por cobrar" value={money(metrics.balance)} />
@@ -116,12 +88,10 @@ function CustomerProfile({
       {loading && <p className="muted">Cargando historial...</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {!loading && !error && history.length === 0 && <p className="muted">Todavía no hay pedidos para esta clienta.</p>}
-      {!loading && history.length > 0 && <div className="list">
-        {history.map((order) => <button className="row" key={order.id} onClick={() => onOpenOrder(order.id)}>
-          <span><strong>{order.orderNumber}</strong><small>{order.status} · entrega {order.promisedDeliveryDate ?? "sin fecha"}</small></span>
-          <span><strong>{money(order.financials.agreedTotalPrice)}</strong><small>saldo {money(order.financials.balance)}</small></span>
-        </button>)}
-      </div>}
+      {!loading && history.length > 0 && <div className="list">{history.map((order) => <button className="row" key={order.id} onClick={() => onOpenOrder(order.id)}>
+        <span><strong>{order.orderNumber}</strong><small>{order.status} · entrega {order.promisedDeliveryDate ?? "sin fecha"}</small></span>
+        <span><strong>{money(order.financials.agreedTotalPrice)}</strong><small>saldo {money(order.financials.balance)}</small></span>
+      </button>)}</div>}
     </section>
   </div>;
 }
@@ -146,12 +116,7 @@ function CustomerList({ data, onChanged, onSelect }: { data: Bootstrap; onChange
     if (cleanName.length < 2) return setError("Ingresa un nombre de al menos 2 caracteres.");
     setSaving(true);
     try {
-      await api.createCustomer({
-        name: cleanName,
-        phone: phone.trim() || null,
-        instagramHandle: instagramHandle.trim() || null,
-        notes: notes.trim() || null
-      });
+      await api.createCustomer({ name: cleanName, phone: phone.trim() || null, instagramHandle: instagramHandle.trim() || null, notes: notes.trim() || null });
       setName(""); setPhone(""); setInstagramHandle(""); setNotes("");
       await onChanged();
       setSuccess("Cliente creado correctamente.");
