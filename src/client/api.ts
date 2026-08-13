@@ -11,9 +11,15 @@ export type Product = {
   name: string;
   type: string;
   baseSalePrice: string;
+  defaultFabricMaterialId?: string | null;
   defaultFabricQtyMeters?: string | null;
+  defaultClosureMaterialId?: string | null;
+  defaultClosureQty?: string | null;
   defaultEmbroideryCost?: string | null;
   defaultOwnLaborCost?: string | null;
+  defaultPackagingMaterialId?: string | null;
+  defaultPackagingQty?: string | null;
+  notes?: string | null;
   active: boolean;
   sizePrices: Array<{ size: string; priceAdjustment: string; fixedPrice?: string | null }>;
 };
@@ -139,6 +145,9 @@ export const api = {
   }),
   bootstrap: () => request<Bootstrap>("/api/bootstrap"),
   createCustomer: (payload: Partial<Customer>) => request<Customer>("/api/customers", { method: "POST", body: JSON.stringify(payload) }),
+  createProduct: (payload: Record<string, unknown>) => request<Product>("/api/products", { method: "POST", body: JSON.stringify(payload) }),
+  createMaterial: (payload: Record<string, unknown>) => request<Material>("/api/materials", { method: "POST", body: JSON.stringify(payload) }),
+  addMaterialStock: (id: string, payload: Record<string, unknown>) => request<{ materialId: string; currentQuantity: number }>(`/api/materials/${id}/stock`, { method: "POST", body: JSON.stringify(payload) }),
   createOrder: (payload: Record<string, unknown>) => request<OrderDetail>("/api/orders", { method: "POST", body: JSON.stringify(payload) }),
   getOrder: (id: string) => request<OrderDetail>(`/api/orders/${id}`),
   pay: (id: string, payload: Record<string, unknown>) => request<OrderDetail>(`/api/orders/${id}/payments`, { method: "POST", body: JSON.stringify(payload) }),
