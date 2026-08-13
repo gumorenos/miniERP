@@ -260,15 +260,65 @@ function OrderDetailView({ order, data, onReload }: { order: OrderDetail; data: 
 
 function Customers({ data, onCreated }: { data: Bootstrap; onCreated: () => Promise<void> }) {
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [instagramHandle, setInstagramHandle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const cleanName = name.trim();
+    setError("");
+    setSuccess("");
+    if (cleanName.length < 2) {
+      setError("Ingresa un nombre de al menos 2 caracteres.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.createCustomer({
+        name: cleanName,
+        phone: phone.trim() || null,
+        instagramHandle: instagramHandle.trim() || null,
+        notes: notes.trim() || null
+      });
+      setName("");
+      setPhone("");
+      setInstagramHandle("");
+      setNotes("");
+      await onCreated();
+      setSuccess("Cliente creado correctamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el cliente.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <section>
-      <h2>Clientes</h2>
-      <form className="inline" onSubmit={async (event) => { event.preventDefault(); await api.createCustomer({ name }); setName(""); await onCreated(); }}>
-        <input placeholder="Nombre" value={name} onChange={(event) => setName(event.target.value)} />
-        <button>Crear</button>
-      </form>
-      <div className="list">{data.customers.map((customer: Customer) => <div className="row static" key={customer.id}><span><strong>{customer.name}</strong><small>{customer.phone ?? customer.instagramHandle ?? "Sin contacto"}</small></span></div>)}</div>
-    </section>
+    <div className="stack">
+      <section>
+        <h2>Nuevo cliente</h2>
+        <form className="form" onSubmit={submit}>
+          <label>Nombre *<input name="customer-name" autoComplete="name" placeholder="Nombre del cliente" value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label>
+          <label>Teléfono<input name="customer-phone" autoComplete="tel" inputMode="tel" placeholder="Ej. 999 999 999" value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+          <label>Instagram<input name="customer-instagram" autoComplete="off" placeholder="Ej. @cliente" value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} /></label>
+          <label>Notas<input name="customer-notes" autoComplete="off" placeholder="Talla habitual, preferencias u otra referencia" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+          {error && <p className="error" role="alert">{error}</p>}
+          {success && <p className="login-success" role="status">{success}</p>}
+          <button type="submit" disabled={saving || name.trim().length < 2}>{saving ? "Guardando..." : "Crear cliente"}</button>
+        </form>
+      </section>
+      <section>
+        <h2>Clientes</h2>
+        {data.customers.length === 0 ? <p className="muted">Todavía no hay clientes registrados.</p> : (
+          <div className="list">{data.customers.map((customer: Customer) => <div className="row static" key={customer.id}><span><strong>{customer.name}</strong><small>{customer.phone ?? customer.instagramHandle ?? "Sin contacto"}</small></span></div>)}</div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -281,4 +331,3 @@ function Inventory({ data }: { data: Bootstrap }) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
-
