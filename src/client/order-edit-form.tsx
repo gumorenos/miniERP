@@ -2,46 +2,47 @@ import React, { useState } from "react";
 import type { Bootstrap, OrderDetail } from "./api";
 import { workshopApi } from "./workshop-api";
 
+const sizes = ["S", "M", "L", "XL", "XXL"] as const;
+const editableProductStates = new Set(["ORDER_RECEIVED", "MATERIAL_PENDING", "READY_TO_CUT"]);
+
 export function OrderEditForm({ order, data, onReload }: { order: OrderDetail; data: Bootstrap; onReload: () => Promise<void> }) {
   const item = order.items[0];
-  const customers = data.customers.some((customer) => customer.id === order.customer.id)
-    ? data.customers
-    : [order.customer, ...data.customers];
   const [editing, setEditing] = useState(false);
   const [customerId, setCustomerId] = useState(order.customer.id);
-  const [size, setSize] = useState(item?.size ?? "S");
+  const [productId, setProductId] = useState(item?.productId ?? "");
+  const [size, setSize] = useState(item?.size ?? "M");
   const [color, setColor] = useState(item?.color ?? "");
-  const [total, setTotal] = useState(Number(order.financials.agreedTotalPrice));
-  const [delivery, setDelivery] = useState(order.promisedDeliveryDate ?? "");
+  const [total, setTotal] = useState(order.financials.agreedTotalPrice);
+  const [date, setDate] = useState(order.promisedDeliveryDate ?? "");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const canChangeProduct = editableProductStates.has(order.status);
 
-  const resetFromOrder = () => {
-    setCustomerId(order.customer.id);
-    setSize(item?.size ?? "S");
-    setColor(item?.color ?? "");
-    setTotal(Number(order.financials.agreedTotalPrice));
-    setDelivery(order.promisedDeliveryDate ?? "");
-    setError("");
+  const reset = () => {
+    setCustomerId(order.customer.id); setProductId(item?.productId ?? ""); setSize(item?.size ?? "M"); setColor(item?.color ?? "");
+    setTotal(order.financials.agreedTotalPrice); setDate(order.promisedDeliveryDate ?? ""); setError("");
   };
 
-  const beginEditing = () => { resetFromOrder(); setEditing(true); };
-  const cancelEditing = () => { resetFromOrder(); setEditing(false); };
+  if (!editing) return <section><h2>Datos del pedido</h2><p className="muted">Cliente: {order.customer.name} · talla {item?.size ?? "-"} · color {item?.color ?? "-"} · entrega {order.promisedDeliveryDate ?? "sin fecha"}</p><button className="secondary" type="button" onClick={() => { reset(); setMessage(""); setEditing(true); }}>Editar pedido</button>{message && <p className="login-success" role="status">{message}</p>}</section>;
 
-  if (!editing) return <button className="ghost" type="button" onClick={beginEditing}>Editar pedido</button>;
+  const currentProductExists = data.products.some((product) => product.id === productId);
+  const currentCustomerExists = data.customers.some((customer) => customer.id === customerId);
 
-  return <form className="form" onSubmit={async (event) => {
-    event.preventDefault(); setError("");
+  return <section><h2>Editar pedido</h2><form className="form" onSubmit={async (event) => {
+    event.preventDefault(); setError(""); setMessage("");
     try {
-      await workshopApi.updateOrder({ id: order.id, customerId, size, color, agreedTotalPrice: total, promisedDeliveryDate: delivery || null });
-      setEditing(false); await onReload();
-    } catch (err) { setError(err instanceof Error ? err.message : "No se pudo editar el pedido."); }
+      await workshopApi.updateOrder({ id: order.id, customerId, ...(canChangeProduct ? { productId } : {}), size, color: color.trim(), agreedTotalPrice: total, promisedDeliveryDate: date || null });
+      await onReload(); setEditing(false); setMessage("Pedido actualizado.");
+    } catch (err) { setError(err instanceof Error ? err.message : "No se pudo actualizar el pedido."); }
   }}>
-    <label>Cliente<select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.id === order.customer.id && !data.customers.some((active) => active.id === customer.id) ? " · borrado" : ""}</option>)}</select></label>
-    <label>Talla<select value={size} onChange={(e) => setSize(e.target.value)}>{["S","M","L","XL","XXL"].map((value) => <option key={value}>{value}</option>)}</select></label>
+    <label>Cliente<select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>{!currentCustomerExists && <option value={order.customer.id}>{order.customer.name} · histórico</option>}{data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+    <label>Producto<select disabled={!canChangeProduct} value={productId} onChange={(e) => setProductId(e.target.value)}>{!currentProductExists && productId && <option value={productId}>Producto histórico</option>}{data.products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
+    {!canChangeProduct && <p className="muted">Producto y talla quedan bloqueados después de iniciar producción para conservar los materiales históricos.</p>}
+    <label>Talla<select disabled={!canChangeProduct} value={size} onChange={(e) => setSize(e.target.value)}>{sizes.map((value) => <option key={value}>{value}</option>)}</select></label>
     <label>Color<input value={color} onChange={(e) => setColor(e.target.value)} required /></label>
-    <label>Total acordado<input type="number" min={order.financials.totalPaid} step="0.01" value={total} onChange={(e) => setTotal(Number(e.target.value))} required /></label>
-    <label>Fecha prometida<input type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} /></label>
+    <label>Total acordado<input type="number" min={Math.max(0.01, order.financials.totalPaid)} step="0.01" value={total} onChange={(e) => setTotal(Number(e.target.value))} required /></label>
+    <label>Fecha prometida<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
     {error && <p className="error" role="alert">{error}</p>}
-    <div className="actions"><button>Guardar cambios</button><button className="secondary" type="button" onClick={cancelEditing}>Cancelar edición</button></div>
-  </form>;
+    <div className="actions"><button>Guardar cambios</button><button className="secondary" type="button" onClick={() => { reset(); setEditing(false); }}>Cancelar</button></div>
+  </form></section>;
 }
