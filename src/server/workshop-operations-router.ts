@@ -3,6 +3,7 @@ import { workshopAgenda } from "./workshop-agenda";
 import { archiveExpense, listExpenses, saveExpense } from "./workshop-expenses";
 import { archivePurchase, createPurchase, listPurchases, updatePurchase } from "./workshop-purchases";
 import { moneySummary } from "./workshop-money";
+import { archiveProvider, listProviders, saveProvider } from "./workshop-providers";
 import { listSizeConsumption, saveSizeConsumption } from "./workshop-size-consumption";
 
 const base = "/api/workshop/";
@@ -15,6 +16,7 @@ export function isWorkshopOperationsRequest(request: Request) {
     "/api/workshop/money",
     "/api/workshop/purchases",
     "/api/workshop/expenses",
+    "/api/workshop/providers",
     "/api/workshop/size-consumption"
   ].includes(path);
 }
@@ -30,6 +32,14 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
   if (path === "/api/workshop/size-consumption") {
     if (request.method === "GET") return listSizeConsumption(user);
     if (request.method === "POST") return saveSizeConsumption(request, user);
+  }
+  if (path === "/api/workshop/providers") {
+    if (request.method === "GET") return listProviders(user);
+    if (request.method === "POST") {
+      const body = await request.clone().json().catch(() => null) as { action?: string } | null;
+      if (body?.action === "archive") return archiveProvider(request, user);
+      return saveProvider(request, user);
+    }
   }
   if (path === "/api/workshop/purchases") {
     if (request.method === "GET") return listPurchases(user);
