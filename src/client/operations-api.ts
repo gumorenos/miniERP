@@ -2,6 +2,7 @@ import { getToken } from "./api";
 
 export type SizeConsumptionRow = { productId: string; size: string; fabricQtyMeters: number | null };
 export type ProviderRow = { id: string; name: string; phone?: string | null; notes?: string | null };
+export type StockEntryRow = { id: string; materialId: string; materialName: string; type: string; quantitySigned: number; unitCost?: number | null; notes?: string | null; occurredAt: string };
 export type PurchaseRow = { id: string; purchaseDate: string; supplierName?: string | null; totalAmount: number; paymentMethod?: string | null; notes?: string | null; lines: Array<{ id: string; materialId: string; materialName: string; quantity: number | string; totalCost: number | string; unitCost: number | string }> };
 export type ExpenseRow = { id: string; expenseDate: string; category: string; description: string; amount: number; paymentMethod?: string | null; orderId?: string | null; orderNumber?: string | null; notes?: string | null };
 export type MoneySummary = { month: string; sales: number; collected: number; purchases: number; expenses: number; receivable: number; netCash: number };
@@ -25,6 +26,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const operationsApi = {
   sizeConsumption: () => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption"),
   saveSizeConsumption: (productId: string, quantities: Record<string, number | null>) => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption", { method: "POST", body: JSON.stringify({ productId, quantities }) }),
+  stockEntries: () => request<{ rows: StockEntryRow[] }>("/api/workshop/stock-entries"),
+  updateStockEntry: (id: string, payload: { quantity: number; unitCost?: number | null; notes?: string | null }) => request<Record<string, unknown>>("/api/workshop/stock-entries", { method: "POST", body: JSON.stringify({ action:"update",id,...payload }) }),
+  archiveStockEntry: (id: string) => request<{ ok: true }>("/api/workshop/stock-entries", { method: "POST", body: JSON.stringify({ action:"archive",id }) }),
   finishedStock: () => request<FinishedStockData>("/api/workshop/finished-stock"),
   saveFinishedStock: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/workshop/finished-stock", { method: "POST", body: JSON.stringify(payload) }),
   archiveFinishedStock: (id: string) => request<{ ok: true }>("/api/workshop/finished-stock", { method: "POST", body: JSON.stringify({ action: "archive", id }) }),
