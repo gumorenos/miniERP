@@ -10,7 +10,7 @@ import { archivePurchase, createPurchase, listPurchases, updatePurchase } from "
 import { moneySummary } from "./workshop-money";
 import { archiveProvider, listProviders, saveProvider } from "./workshop-providers";
 import { listSizeConsumption, saveSizeConsumption } from "./workshop-size-consumption";
-import { archiveManualStockEntry, editManualStockEntry, listManualStockEntries } from "./workshop-stock-entries";
+import { archiveManualStockEntry, createManualStockAdjustment, editManualStockEntry, listManualStockEntries } from "./workshop-stock-entries";
 
 const base = "/api/workshop/";
 const orderAction = /^\/api\/workshop\/orders\/([0-9a-f-]+)\/(assembly|ready-delivery)$/i;
@@ -44,7 +44,12 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
   if (path === "/api/workshop/money" && request.method === "GET") return moneySummary(request, user);
   if (path === "/api/workshop/stock-entries") {
     if (request.method === "GET") return listManualStockEntries(user);
-    if (request.method === "POST") { const body = await request.clone().json().catch(() => null) as { action?: string } | null; if (body?.action === "archive") return archiveManualStockEntry(request,user); if (body?.action === "update") return editManualStockEntry(request,user); }
+    if (request.method === "POST") {
+      const body = await request.clone().json().catch(() => null) as { action?: string } | null;
+      if (body?.action === "create") return createManualStockAdjustment(request,user);
+      if (body?.action === "archive") return archiveManualStockEntry(request,user);
+      if (body?.action === "update") return editManualStockEntry(request,user);
+    }
   }
   if (path === "/api/workshop/finished-stock") { if (request.method === "GET") return listFinishedStock(user); if (request.method === "POST") return saveFinishedStock(request,user); }
   if (path === "/api/workshop/size-consumption") { if (request.method === "GET") return listSizeConsumption(user); if (request.method === "POST") return saveSizeConsumption(request, user); }
