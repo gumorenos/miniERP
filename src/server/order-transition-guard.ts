@@ -8,6 +8,7 @@ import type { AuthUser } from "./auth";
 
 const transitionSchema = z.object({ status: z.enum(orderStatuses), note: z.string().optional().nullable() });
 const sendSchema = z.object({ providerId: z.string().uuid() }).passthrough();
+const controlledTargets = new Set<OrderStatus>(["CUT", "AT_EMBROIDERER", "EMBROIDERY_RECEIVED", "ASSEMBLY", "READY_FOR_DELIVERY"]);
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -29,20 +30,29 @@ async function orderForEmbroideryJob(businessId: string, jobId: string) {
   return { order, error: null };
 }
 
+function validateGenericTransition(from: OrderStatus, target: OrderStatus) {
+  if (controlledTargets.has(target)) return `La transición a ${target} usa una acción operativa específica`;
+  if (target === "MATERIAL_PENDING" && !["ORDER_RECEIVED", "MATERIAL_PENDING"].includes(from)) return `No se puede pasar de ${from} a MATERIAL_PENDING`;
+  if (target === "READY_TO_CUT" && !["ORDER_RECEIVED", "MATERIAL_PENDING", "READY_TO_CUT"].includes(from)) return `No se puede pasar de ${from} a READY_TO_CUT`;
+  if (target === "DELIVERED" && !["READY_FOR_DELIVERY", "DELIVERED"].includes(from)) return "El pedido debe estar listo para entregar antes de marcarlo entregado";
+  if (target === "CLOSED" && !["DELIVERED", "CLOSED"].includes(from)) return "El pedido debe estar entregado antes de cerrarlo";
+  return null;
+}
+
 export async function guardOrderWorkflowMutation(request: Request, user: AuthUser): Promise<Response | null> {
   if (request.method !== "POST") return null;
   const path = new URL(request.url).pathname;
   let order: { id: string; status: string } | null = null;
   let target: OrderStatus | null = null;
+  let genericTransition = false;
 
   const transitionMatch = path.match(/^\/api\/orders\/([0-9a-f-]+)\/transition$/i);
   if (transitionMatch) {
     const parsed = transitionSchema.safeParse(await request.clone().json().catch(() => null));
     if (!parsed.success) return json({ error: "Estado de pedido inválido" }, 400);
-    if (parsed.data.status === "ASSEMBLY") return json({ error: "Usa la acción Iniciar confección para registrar el consumo de cierre" }, 409);
-    if (parsed.data.status === "READY_FOR_DELIVERY") return json({ error: "Usa la acción Listo para entregar para registrar el consumo de empaque" }, 409);
     order = await orderById(user.businessId, transitionMatch[1]);
     target = parsed.data.status;
+    genericTransition = true;
   }
 
   const cutMatch = path.match(/^\/api\/orders\/([0-9a-f-]+)\/cut$/i);
@@ -78,6 +88,18 @@ export async function guardOrderWorkflowMutation(request: Request, user: AuthUse
   if (!target) return null;
   if (!order) return json({ error: "Pedido no encontrado" }, 404);
   const from = order.status as OrderStatus;
+
+  if (genericTransition) {
+    const reason = validateGenericTransition(from, target);
+    if (reason) return json({ error: reason }, 409);
+  } else if (target === "CUT" && !["READY_TO_CUT", "CUT"].includes(from)) {
+    return json({ error: "El pedido debe estar listo para corte antes de cortar" }, 409);
+  } else if (target === "AT_EMBROIDERER" && from !== "CUT") {
+    return json({ error: "El pedido debe estar cortado antes de enviarlo al bordador" }, 409);
+  } else if (target === "EMBROIDERY_RECEIVED" && from !== "AT_EMBROIDERER") {
+    return json({ error: "El pedido no está actualmente con el bordador" }, 409);
+  }
+
   if (!canTransitionOrder(from, target)) return json({ error: `No se puede cambiar el pedido de ${from} a ${target}` }, 409);
   return null;
 }
