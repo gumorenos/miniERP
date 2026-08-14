@@ -1,6 +1,7 @@
 import { getToken } from "./api";
 
 export type SizeConsumptionRow = { productId: string; size: string; fabricQtyMeters: number | null };
+export type ProviderRow = { id: string; name: string; phone?: string | null; notes?: string | null };
 export type PurchaseRow = {
   id: string; purchaseDate: string; supplierName?: string | null; totalAmount: number; paymentMethod?: string | null; notes?: string | null;
   lines: Array<{ id: string; materialId: string; materialName: string; quantity: number | string; totalCost: number | string; unitCost: number | string }>;
@@ -26,6 +27,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const operationsApi = {
   sizeConsumption: () => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption"),
   saveSizeConsumption: (productId: string, quantities: Record<string, number | null>) => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption", { method: "POST", body: JSON.stringify({ productId, quantities }) }),
+  providers: () => request<{ rows: ProviderRow[] }>("/api/workshop/providers"),
+  saveProvider: (payload: Record<string, unknown>) => request<ProviderRow>("/api/workshop/providers", { method: "POST", body: JSON.stringify(payload) }),
+  archiveProvider: (id: string) => request<{ ok: true }>("/api/workshop/providers", { method: "POST", body: JSON.stringify({ action: "archive", id }) }),
   purchases: () => request<{ rows: PurchaseRow[] }>("/api/workshop/purchases"),
   createPurchase: (payload: Record<string, unknown>) => request<PurchaseRow>("/api/workshop/purchases", { method: "POST", body: JSON.stringify(payload) }),
   updatePurchase: (payload: Record<string, unknown>) => request<PurchaseRow>("/api/workshop/purchases", { method: "POST", body: JSON.stringify({ action: "update", ...payload }) }),
