@@ -7,6 +7,7 @@ import { archivePurchase, createPurchase, listPurchases, updatePurchase } from "
 import { moneySummary } from "./workshop-money";
 import { archiveProvider, listProviders, saveProvider } from "./workshop-providers";
 import { listSizeConsumption, saveSizeConsumption } from "./workshop-size-consumption";
+import { archiveManualStockEntry, editManualStockEntry, listManualStockEntries } from "./workshop-stock-entries";
 
 const base = "/api/workshop/";
 const orderAction = /^\/api\/workshop\/orders\/([0-9a-f-]+)\/(assembly|ready-delivery)$/i;
@@ -15,7 +16,7 @@ export function isWorkshopOperationsRequest(request: Request) {
   const path = new URL(request.url).pathname;
   if (!path.startsWith(base)) return false;
   if (orderAction.test(path)) return true;
-  return ["/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock"].includes(path);
+  return ["/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"].includes(path);
 }
 
 function json(payload: unknown, status = 200) {
@@ -28,6 +29,14 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
   if (actionMatch && request.method === "POST") return actionMatch[2] === "assembly" ? startAssembly(user,actionMatch[1]) : readyForDelivery(user,actionMatch[1]);
   if (path === "/api/workshop/agenda" && request.method === "GET") return workshopAgenda(user);
   if (path === "/api/workshop/money" && request.method === "GET") return moneySummary(request, user);
+  if (path === "/api/workshop/stock-entries") {
+    if (request.method === "GET") return listManualStockEntries(user);
+    if (request.method === "POST") {
+      const body = await request.clone().json().catch(() => null) as { action?: string } | null;
+      if (body?.action === "archive") return archiveManualStockEntry(request,user);
+      if (body?.action === "update") return editManualStockEntry(request,user);
+    }
+  }
   if (path === "/api/workshop/finished-stock") {
     if (request.method === "GET") return listFinishedStock(user);
     if (request.method === "POST") return saveFinishedStock(request,user);
