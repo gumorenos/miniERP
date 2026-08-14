@@ -5,6 +5,10 @@ export type ProviderRow = { id: string; name: string; phone?: string | null; not
 export type PurchaseRow = { id: string; purchaseDate: string; supplierName?: string | null; totalAmount: number; paymentMethod?: string | null; notes?: string | null; lines: Array<{ id: string; materialId: string; materialName: string; quantity: number | string; totalCost: number | string; unitCost: number | string }> };
 export type ExpenseRow = { id: string; expenseDate: string; category: string; description: string; amount: number; paymentMethod?: string | null; orderId?: string | null; orderNumber?: string | null; notes?: string | null };
 export type MoneySummary = { month: string; sales: number; collected: number; purchases: number; expenses: number; receivable: number; netCash: number };
+export type FinishedStockData = {
+  balances: Array<{ productId: string; productName: string; size: string; color: string; quantity: number }>;
+  movements: Array<{ id: string; productId: string; size: string; color: string; type: string; quantitySigned: number; unitCost?: number | null; notes?: string | null; occurredAt: string }>;
+};
 export type AgendaData = {
   orders: Array<{ id: string; orderNumber: string; status: string; promisedDeliveryDate: string; customerName: string; phone?: string | null; agreedTotalPrice: number; balance: number }>;
   embroidery: Array<{ id: string; status: string; expectedReturnDate?: string | null; sentAt?: string | null; orderId: string; orderNumber: string; customerName: string; providerName: string; providerPhone?: string | null }>;
@@ -21,6 +25,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const operationsApi = {
   sizeConsumption: () => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption"),
   saveSizeConsumption: (productId: string, quantities: Record<string, number | null>) => request<{ rows: SizeConsumptionRow[] }>("/api/workshop/size-consumption", { method: "POST", body: JSON.stringify({ productId, quantities }) }),
+  finishedStock: () => request<FinishedStockData>("/api/workshop/finished-stock"),
+  saveFinishedStock: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/workshop/finished-stock", { method: "POST", body: JSON.stringify(payload) }),
+  archiveFinishedStock: (id: string) => request<{ ok: true }>("/api/workshop/finished-stock", { method: "POST", body: JSON.stringify({ action: "archive", id }) }),
   providers: () => request<{ rows: ProviderRow[] }>("/api/workshop/providers"),
   saveProvider: (payload: Record<string, unknown>) => request<ProviderRow>("/api/workshop/providers", { method: "POST", body: JSON.stringify(payload) }),
   archiveProvider: (id: string) => request<{ ok: true }>("/api/workshop/providers", { method: "POST", body: JSON.stringify({ action: "archive", id }) }),
