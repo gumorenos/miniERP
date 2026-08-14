@@ -9,11 +9,17 @@ export type MoneySummary = { month: string; sales: number; collected: number; pu
 export type OperationalDashboard = Bootstrap["dashboard"] & { month: string };
 export type FinishedStockData = { balances: Array<{ productId: string; productName: string; size: string; color: string; quantity: number }>; movements: Array<{ id: string; productId: string; size: string; color: string; type: string; quantitySigned: number; unitCost?: number | null; notes?: string | null; occurredAt: string }> };
 export type AgendaData = { orders: Array<{ id: string; orderNumber: string; status: string; promisedDeliveryDate: string; customerName: string; phone?: string | null; agreedTotalPrice: number; balance: number }>; embroidery: Array<{ id: string; status: string; expectedReturnDate?: string | null; sentAt?: string | null; orderId: string; orderNumber: string; customerName: string; providerName: string; providerPhone?: string | null }> };
+export type CustomerHistoryData = {
+  customer: { id: string; name: string; phone?: string | null; instagramHandle?: string | null; notes?: string | null };
+  metrics: { totalOrders: number; activeOrders: number; totalSales: number; totalPaid: number; balance: number; lastOrderDate: string | null };
+  orders: Array<{ id: string; orderNumber: string; status: string; orderDate: string; promisedDeliveryDate?: string | null; agreedTotalPrice: string; totalPaid: number; balance: number }>;
+};
 
 async function request<T>(path:string,options:RequestInit={}){const token=getToken();const response=await fetch(path,{...options,headers:{"content-type":"application/json",...(token?{authorization:`Bearer ${token}`}:{ }),...options.headers}});const payload=await response.json().catch(()=>({error:response.statusText}));if(!response.ok)throw new Error(payload.error??"Error de API");return payload as T;}
 
 export const operationsApi={
   dashboard:()=>request<OperationalDashboard>("/api/workshop/dashboard"),
+  customerHistory:(customerId:string)=>request<CustomerHistoryData>(`/api/workshop/customers/${encodeURIComponent(customerId)}/history`),
   sizeConsumption:()=>request<{rows:SizeConsumptionRow[]}>("/api/workshop/size-consumption"),saveSizeConsumption:(productId:string,quantities:Record<string,number|null>)=>request<{rows:SizeConsumptionRow[]}>("/api/workshop/size-consumption",{method:"POST",body:JSON.stringify({productId,quantities})}),
   stockEntries:()=>request<{rows:StockEntryRow[]}>("/api/workshop/stock-entries"),updateStockEntry:(id:string,payload:{quantity:number;unitCost?:number|null;notes?:string|null})=>request<Record<string,unknown>>("/api/workshop/stock-entries",{method:"POST",body:JSON.stringify({action:"update",id,...payload})}),archiveStockEntry:(id:string)=>request<{ok:true}>("/api/workshop/stock-entries",{method:"POST",body:JSON.stringify({action:"archive",id})}),
   finishedStock:()=>request<FinishedStockData>("/api/workshop/finished-stock"),saveFinishedStock:(payload:Record<string,unknown>)=>request<Record<string,unknown>>("/api/workshop/finished-stock",{method:"POST",body:JSON.stringify(payload)}),archiveFinishedStock:(id:string)=>request<{ok:true}>("/api/workshop/finished-stock",{method:"POST",body:JSON.stringify({action:"archive",id})}),
