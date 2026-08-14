@@ -26,11 +26,17 @@ Key properties:
 - The long-running app container does not receive bootstrap user credentials.
 - Secrets live only in the server-side env file and must not be committed. Set restrictive filesystem permissions on this file.
 
-Recommended exposure path:
+Current exposure path:
 
-`Internet -> Cloudflare Access/Tunnel -> 127.0.0.1:${APP_HOST_PORT} -> miniERP app -> private Docker network -> PostgreSQL`
+`Internet -> Cloudflare Tunnel -> 127.0.0.1:${APP_HOST_PORT} -> miniERP app -> private Docker network -> PostgreSQL`
 
-For the first pilot, protect the hostname with Cloudflare Access so only the intended tester can reach the app. Do not open the application or PostgreSQL port directly in the VPS firewall.
+The current pilot relies on application authentication plus login rate limiting. Do not open the application or PostgreSQL port directly in the VPS firewall.
+
+### Cloudflare Access — PENDING
+
+Cloudflare Access is intentionally **not enabled yet** for the current pilot, but it remains a pending defense-in-depth item and must not be removed from the roadmap. Before the pilot is widened to more users or treated as a longer-lived external service, evaluate and enable Cloudflare Access in front of the hostname unless there is a documented reason not to.
+
+Enabling Access later must preserve application authentication rather than replace it.
 
 ### Initial deploy procedure
 
@@ -59,9 +65,10 @@ This same command can later rotate that user's password. Password rotation marks
 curl -fsS http://127.0.0.1:${APP_HOST_PORT}/api/health
 ```
 
-9. Verify login locally, then configure Cloudflare Tunnel and Access.
-10. Only after local health/login passes, attach the protected hostname.
-11. Run smoke checks against the protected hostname.
+9. Verify login locally, then confirm the Cloudflare Tunnel route.
+10. Only after local health/login passes, attach or update the hostname.
+11. Run smoke checks against the hostname.
+12. When Cloudflare Access is enabled later, add an Access-specific smoke check without removing the application-login smoke.
 
 ### Production-like E2E QA
 
@@ -88,7 +95,7 @@ E2E_BASE_URL=http://127.0.0.1:${APP_HOST_PORT} npm run test:e2e
 4. Run code QA gates.
 5. Rebuild/restart with `compose.prod.yml`; migrations run before the app starts.
 6. Confirm both services healthy and run local smoke tests.
-7. Confirm the protected hostname after local validation.
+7. Confirm the external hostname after local validation.
 
 ### Rollback
 
@@ -96,4 +103,4 @@ Keep the previous image/commit identifiable before upgrades. If a release fails 
 
 ## Authentication / exposure policy
 
-Application auth uses salted `scrypt` password hashes and persistent revocable sessions. Cloudflare Access remains required for the first pilot as defense in depth and to keep the pilot URL restricted to the intended tester.
+Application auth uses salted `scrypt` password hashes, persistent revocable sessions and application-level login rate limiting. Cloudflare Access remains a pending defense-in-depth control for the pilot; when enabled, it must sit in front of — not replace — the application authentication layer.
