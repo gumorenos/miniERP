@@ -11,6 +11,7 @@ export function ProductsManager({ data, onChanged }: { data: Bootstrap; onChange
   const [name, setName] = useState("");
   const [type, setType] = useState("DRESS");
   const [price, setPrice] = useState(320);
+  const [leadTimeDays, setLeadTimeDays] = useState(25);
   const [fabricId, setFabricId] = useState("");
   const [fabricQty, setFabricQty] = useState(1);
   const [closureId, setClosureId] = useState("");
@@ -29,10 +30,11 @@ export function ProductsManager({ data, onChanged }: { data: Bootstrap; onChange
     setError(""); setSuccess("");
     if (name.trim().length < 2) return setError("Ingresa un nombre para el producto.");
     if (price <= 0) return setError("El precio debe ser mayor a cero.");
+    if (leadTimeDays < 0 || leadTimeDays > 365) return setError("El plazo debe estar entre 0 y 365 días.");
     setSaving(true);
     try {
       await api.createProduct({
-        name: name.trim(), type, baseSalePrice: price,
+        name: name.trim(), type, baseSalePrice: price, leadTimeDays,
         defaultFabricMaterialId: fabricId || null,
         defaultFabricQtyMeters: fabricId ? fabricQty : null,
         defaultClosureMaterialId: closureId || null,
@@ -60,6 +62,7 @@ export function ProductsManager({ data, onChanged }: { data: Bootstrap; onChange
         <label>Nombre del modelo *<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Vestido Mariana" required minLength={2} /></label>
         <label>Tipo<select value={type} onChange={(e) => setType(e.target.value)}>{Object.entries(typeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Precio base *<input type="number" min="0.01" step="0.01" value={price} onChange={(e) => setPrice(Number(e.target.value))} /></label>
+        <label>Plazo habitual (días)<input type="number" min="0" max="365" step="1" value={leadTimeDays} onChange={(e) => setLeadTimeDays(Number(e.target.value))} /></label>
         <label>Tela habitual<select value={fabricId} onChange={(e) => setFabricId(e.target.value)}><option value="">Sin definir</option>{fabrics.map((m) => <option key={m.id} value={m.id}>{m.name}{m.color ? ` · ${m.color}` : ""}</option>)}</select></label>
         {fabricId && <label>Metros por prenda<input type="number" min="0.01" step="0.01" value={fabricQty} onChange={(e) => setFabricQty(Number(e.target.value))} /></label>}
         <label>Cierre<select value={closureId} onChange={(e) => setClosureId(e.target.value)}><option value="">No usa / sin definir</option>{closures.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
@@ -74,6 +77,6 @@ export function ProductsManager({ data, onChanged }: { data: Bootstrap; onChange
         <button type="submit" disabled={saving || name.trim().length < 2}>{saving ? "Guardando..." : "Crear producto"}</button>
       </form>
     </section>
-    <section><h2>Productos</h2>{!data.products.length ? <p className="muted">Todavía no hay productos registrados.</p> : <div className="list">{data.products.map((p) => <div className="row static" key={p.id}><span><strong>{p.name}</strong><small>{typeLabels[p.type] ?? p.type} · tela {p.defaultFabricQtyMeters ?? "-"} m · bordado {fmt(p.defaultEmbroideryCost)}</small></span><strong>{fmt(p.baseSalePrice)}</strong></div>)}</div>}</section>
+    <section><h2>Productos</h2>{!data.products.length ? <p className="muted">Todavía no hay productos registrados.</p> : <div className="list">{data.products.map((p) => <div className="row static" key={p.id}><span><strong>{p.name}</strong><small>{typeLabels[p.type] ?? p.type} · {Number((p as unknown as { leadTimeDays?: number }).leadTimeDays ?? 25)} días · tela {p.defaultFabricQtyMeters ?? "-"} m · bordado {fmt(p.defaultEmbroideryCost)}</small></span><strong>{fmt(p.baseSalePrice)}</strong></div>)}</div>}</section>
   </div>;
 }
