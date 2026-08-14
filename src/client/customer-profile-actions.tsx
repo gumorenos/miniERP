@@ -12,13 +12,9 @@ export function CustomerProfileActions({ customer, onChanged, onArchived }: { cu
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const resetFromCustomer = () => {
-    setName(customer.name); setPhone(customer.phone ?? ""); setInstagram(customer.instagramHandle ?? ""); setNotes(customer.notes ?? ""); setError("");
-  };
-  const begin = () => { resetFromCustomer(); setMessage(""); setEditing(true); };
-  const cancel = () => { resetFromCustomer(); setEditing(false); };
+  const restore = () => { setName(customer.name); setPhone(customer.phone ?? ""); setInstagram(customer.instagramHandle ?? ""); setNotes(customer.notes ?? ""); setError(""); };
 
-  if (!editing) return <div><div className="actions"><button className="secondary" type="button" onClick={begin}>Editar cliente</button><ArchiveButton entityType="CUSTOMER" id={customer.id} onArchived={onArchived} /></div>{message && <p className="login-success" role="status">{message}</p>}</div>;
+  if (!editing) return <div className="stack compact"><div className="actions"><button className="secondary" type="button" onClick={() => { restore(); setMessage(""); setEditing(true); }}>Editar cliente</button><ArchiveButton entityType="CUSTOMER" id={customer.id} onArchived={onArchived} /></div>{message && <p className="login-success" role="status">{message}</p>}</div>;
 
   return <form className="form" onSubmit={async (event) => {
     event.preventDefault(); setError(""); setMessage("");
@@ -33,6 +29,6 @@ export function CustomerProfileActions({ customer, onChanged, onArchived }: { cu
     <label>Instagram<input value={instagram} onChange={(e) => setInstagram(e.target.value)} /></label>
     <label>Notas<input value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
     {error && <p className="error" role="alert">{error}</p>}
-    <div className="actions"><button>Guardar cambios</button><button className="secondary" type="button" onClick={cancel}>Cancelar edición</button></div>
+    <div className="actions"><button>Guardar cambios</button><button className="secondary" type="button" onClick={() => { restore(); setEditing(false); }}>Cancelar</button></div>
   </form>;
 }
