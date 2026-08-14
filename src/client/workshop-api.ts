@@ -15,7 +15,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
-export type ArchiveEntityType = "CUSTOMER" | "PRODUCT" | "MATERIAL" | "ORDER" | "PAYMENT";
+export type ArchiveEntityType = "CUSTOMER" | "PRODUCT" | "MATERIAL" | "ORDER" | "PAYMENT" | "PROVIDER";
 
 export const workshopApi = {
   updateCustomer: (payload: Record<string, unknown>) => request<Customer>("/api/customers", {
