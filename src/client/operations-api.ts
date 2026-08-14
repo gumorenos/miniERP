@@ -2,10 +2,7 @@ import { getToken } from "./api";
 
 export type SizeConsumptionRow = { productId: string; size: string; fabricQtyMeters: number | null };
 export type ProviderRow = { id: string; name: string; phone?: string | null; notes?: string | null };
-export type PurchaseRow = {
-  id: string; purchaseDate: string; supplierName?: string | null; totalAmount: number; paymentMethod?: string | null; notes?: string | null;
-  lines: Array<{ id: string; materialId: string; materialName: string; quantity: number | string; totalCost: number | string; unitCost: number | string }>;
-};
+export type PurchaseRow = { id: string; purchaseDate: string; supplierName?: string | null; totalAmount: number; paymentMethod?: string | null; notes?: string | null; lines: Array<{ id: string; materialId: string; materialName: string; quantity: number | string; totalCost: number | string; unitCost: number | string }> };
 export type ExpenseRow = { id: string; expenseDate: string; category: string; description: string; amount: number; paymentMethod?: string | null; orderId?: string | null; orderNumber?: string | null; notes?: string | null };
 export type MoneySummary = { month: string; sales: number; collected: number; purchases: number; expenses: number; receivable: number; netCash: number };
 export type AgendaData = {
@@ -15,10 +12,7 @@ export type AgendaData = {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const response = await fetch(path, {
-    ...options,
-    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...options.headers }
-  });
+  const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...options.headers } });
   const payload = await response.json().catch(() => ({ error: response.statusText }));
   if (!response.ok) throw new Error(payload.error ?? "Error de API");
   return payload as T;
@@ -38,5 +32,7 @@ export const operationsApi = {
   saveExpense: (payload: Record<string, unknown>) => request<ExpenseRow>("/api/workshop/expenses", { method: "POST", body: JSON.stringify(payload) }),
   archiveExpense: (id: string) => request<{ ok: true }>("/api/workshop/expenses", { method: "POST", body: JSON.stringify({ action: "archive", id }) }),
   money: (month?: string) => request<MoneySummary>(`/api/workshop/money${month ? `?month=${encodeURIComponent(month)}` : ""}`),
-  agenda: () => request<AgendaData>("/api/workshop/agenda")
+  agenda: () => request<AgendaData>("/api/workshop/agenda"),
+  startAssembly: (orderId: string) => request<{ ok: true; status: string; consumed: number; alreadyConsumed: boolean }>(`/api/workshop/orders/${orderId}/assembly`, { method: "POST", body: "{}" }),
+  readyForDelivery: (orderId: string) => request<{ ok: true; status: string; consumed: number; alreadyConsumed: boolean }>(`/api/workshop/orders/${orderId}/ready-delivery`, { method: "POST", body: "{}" })
 };
