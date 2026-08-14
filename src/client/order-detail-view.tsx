@@ -21,7 +21,6 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 export function OrderDetailView({ order, data, onReload, onArchived }: { order: OrderDetail; data: Bootstrap; onReload: () => Promise<void>; onArchived: () => Promise<void> | void }) {
   const item = order.items[0];
   const terminal = order.status === "CANCELLED" || order.status === "CLOSED";
-  const nextActions = [["MATERIAL_PENDING", "Material pendiente"], ["READY_TO_CUT", "Listo para corte"], ["DELIVERED", "Entregar"], ["CLOSED", "Cerrar"]] as const;
   const message = customerOrderMessage({ customerName: order.customer.name, orderNumber: order.orderNumber, status: order.status, balance: order.financials.balance });
   const customerWhatsApp = order.customer.phone ? whatsappUrl(order.customer.phone, message) : null;
 
@@ -36,10 +35,13 @@ export function OrderDetailView({ order, data, onReload, onArchived }: { order: 
     <OrderEditForm order={order} data={data} onReload={onReload} />
 
     <section><h2>Flujo</h2>{terminal ? <p className="muted">Este pedido está {order.status === "CANCELLED" ? "cancelado" : "cerrado"}. Puedes corregir sus datos o borrar pagos, pero no avanzar el flujo.</p> : <div className="actions">
-      <button onClick={async () => { await api.cut(order.id); await onReload(); }}>Cortar y descontar tela</button>
-      <button className="secondary" onClick={async () => { await operationsApi.startAssembly(order.id); await onReload(); }}>Iniciar confección</button>
-      <button className="secondary" onClick={async () => { await operationsApi.readyForDelivery(order.id); await onReload(); }}>Listo para entregar</button>
-      {nextActions.map(([status, label]) => <button className="secondary" key={status} onClick={async () => { await api.transition(order.id, status); await onReload(); }}>{label}</button>)}
+      {order.status === "ORDER_RECEIVED" && <button className="secondary" onClick={async () => { await api.transition(order.id, "MATERIAL_PENDING"); await onReload(); }}>Material pendiente</button>}
+      {["ORDER_RECEIVED", "MATERIAL_PENDING", "READY_TO_CUT"].includes(order.status) && <button className="secondary" onClick={async () => { await api.transition(order.id, "READY_TO_CUT"); await onReload(); }}>Listo para corte</button>}
+      {["READY_TO_CUT", "CUT"].includes(order.status) && <button onClick={async () => { await api.cut(order.id); await onReload(); }}>Cortar y descontar tela</button>}
+      {["CUT", "EMBROIDERY_RECEIVED", "ASSEMBLY"].includes(order.status) && <button className="secondary" onClick={async () => { await operationsApi.startAssembly(order.id); await onReload(); }}>Iniciar confección</button>}
+      {["ASSEMBLY", "READY_FOR_DELIVERY"].includes(order.status) && <button className="secondary" onClick={async () => { await operationsApi.readyForDelivery(order.id); await onReload(); }}>Listo para entregar</button>}
+      {["READY_FOR_DELIVERY", "DELIVERED"].includes(order.status) && <button className="secondary" onClick={async () => { await api.transition(order.id, "DELIVERED"); await onReload(); }}>Entregar</button>}
+      {order.status === "DELIVERED" && <button className="secondary" onClick={async () => { await api.transition(order.id, "CLOSED"); await onReload(); }}>Cerrar</button>}
       <button className="ghost danger" onClick={async () => { if (!window.confirm("¿Cancelar este pedido?")) return; await api.transition(order.id, "CANCELLED"); await onReload(); }}>Cancelar pedido</button>
     </div>}</section>
 
