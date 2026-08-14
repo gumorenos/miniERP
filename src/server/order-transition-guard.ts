@@ -39,6 +39,8 @@ export async function guardOrderWorkflowMutation(request: Request, user: AuthUse
   if (transitionMatch) {
     const parsed = transitionSchema.safeParse(await request.clone().json().catch(() => null));
     if (!parsed.success) return json({ error: "Estado de pedido inválido" }, 400);
+    if (parsed.data.status === "ASSEMBLY") return json({ error: "Usa la acción Iniciar confección para registrar el consumo de cierre" }, 409);
+    if (parsed.data.status === "READY_FOR_DELIVERY") return json({ error: "Usa la acción Listo para entregar para registrar el consumo de empaque" }, 409);
     order = await orderById(user.businessId, transitionMatch[1]);
     target = parsed.data.status;
   }
