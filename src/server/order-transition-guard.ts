@@ -1,47 +1,29 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { embroideryJobs, orderItems, orders } from "../db/schema";
+import { embroideryJobs, embroideryProviders, orderItems, orders } from "../db/schema";
 import { canTransitionOrder } from "../domain/order";
 import { orderStatuses, type OrderStatus } from "../domain/types";
 import type { AuthUser } from "./auth";
 
-const transitionSchema = z.object({
-  status: z.enum(orderStatuses),
-  note: z.string().optional().nullable()
-});
+const transitionSchema = z.object({ status: z.enum(orderStatuses), note: z.string().optional().nullable() });
+const sendSchema = z.object({ providerId: z.string().uuid() }).passthrough();
 
 function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" }
-  });
+  return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 }
 
 async function orderById(businessId: string, orderId: string) {
-  const [order] = await db
-    .select({ id: orders.id, status: orders.status })
-    .from(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.businessId, businessId)))
-    .limit(1);
+  const [order] = await db.select({ id: orders.id, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, businessId))).limit(1);
   return order ?? null;
 }
 
 async function orderForEmbroideryJob(businessId: string, jobId: string) {
-  const [job] = await db
-    .select({ orderItemId: embroideryJobs.orderItemId })
-    .from(embroideryJobs)
-    .where(and(eq(embroideryJobs.id, jobId), eq(embroideryJobs.businessId, businessId)))
-    .limit(1);
+  const [job] = await db.select({ orderItemId: embroideryJobs.orderItemId, status: embroideryJobs.status }).from(embroideryJobs).where(and(eq(embroideryJobs.id, jobId), eq(embroideryJobs.businessId, businessId))).limit(1);
   if (!job) return { order: null, error: json({ error: "Trabajo de bordado no encontrado" }, 404) };
-
-  const [item] = await db
-    .select({ orderId: orderItems.orderId })
-    .from(orderItems)
-    .where(eq(orderItems.id, job.orderItemId))
-    .limit(1);
+  if (job.status !== "SENT") return { order: null, error: json({ error: "El trabajo de bordado ya fue recibido o cerrado" }, 409) };
+  const [item] = await db.select({ orderId: orderItems.orderId }).from(orderItems).where(eq(orderItems.id, job.orderItemId)).limit(1);
   if (!item) return { order: null, error: json({ error: "El trabajo de bordado no tiene pedido asociado" }, 409) };
-
   const order = await orderById(businessId, item.orderId);
   if (!order) return { order: null, error: json({ error: "Pedido no encontrado" }, 404) };
   return { order, error: null };
@@ -62,14 +44,24 @@ export async function guardOrderWorkflowMutation(request: Request, user: AuthUse
   }
 
   const cutMatch = path.match(/^\/api\/orders\/([0-9a-f-]+)\/cut$/i);
-  if (cutMatch) {
-    order = await orderById(user.businessId, cutMatch[1]);
-    target = "CUT";
-  }
+  if (cutMatch) { order = await orderById(user.businessId, cutMatch[1]); target = "CUT"; }
 
   const sendMatch = path.match(/^\/api\/orders\/([0-9a-f-]+)\/send-embroidery$/i);
   if (sendMatch) {
+    const parsed = sendSchema.safeParse(await request.clone().json().catch(() => null));
+    if (!parsed.success) return json({ error: "Bordador inválido" }, 400);
+    const [provider] = await db.select({ id: embroideryProviders.id }).from(embroideryProviders).where(and(eq(embroideryProviders.id, parsed.data.providerId), eq(embroideryProviders.businessId, user.businessId), eq(embroideryProviders.active, true))).limit(1);
+    if (!provider) return json({ error: "El bordador no pertenece a este negocio o fue borrado" }, 400);
+    const archivedProvider = await db.execute(sql`select 1 from deleted_records where business_id=${user.businessId}::uuid and entity_type='PROVIDER' and entity_id=${parsed.data.providerId}::uuid limit 1`);
+    if (archivedProvider.rows.length) return json({ error: "El bordador fue borrado" }, 409);
     order = await orderById(user.businessId, sendMatch[1]);
+    if (order) {
+      const [item] = await db.select({ id: orderItems.id }).from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
+      if (item) {
+        const existing = await db.select({ id: embroideryJobs.id }).from(embroideryJobs).where(and(eq(embroideryJobs.orderItemId, item.id), eq(embroideryJobs.status, "SENT"))).limit(1);
+        if (existing.length) return json({ error: "El pedido ya tiene un bordado pendiente" }, 409);
+      }
+    }
     target = "AT_EMBROIDERER";
   }
 
@@ -83,11 +75,7 @@ export async function guardOrderWorkflowMutation(request: Request, user: AuthUse
 
   if (!target) return null;
   if (!order) return json({ error: "Pedido no encontrado" }, 404);
-
   const from = order.status as OrderStatus;
-  if (!canTransitionOrder(from, target)) {
-    return json({ error: `No se puede cambiar el pedido de ${from} a ${target}` }, 409);
-  }
-
+  if (!canTransitionOrder(from, target)) return json({ error: `No se puede cambiar el pedido de ${from} a ${target}` }, 409);
   return null;
 }
