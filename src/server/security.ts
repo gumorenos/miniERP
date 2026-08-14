@@ -12,6 +12,7 @@ import { handleCustomerEdit, handleOrderEdit, handlePaymentEdit } from "./edit-m
 import { handleOrderCreateWithAdvance } from "./order-create";
 import { guardOrderWorkflowMutation } from "./order-transition-guard";
 import { handlePaymentCreate } from "./payment-create";
+import { handleWorkshopOperations, isWorkshopOperationsRequest } from "./workshop-operations-router";
 
 const loginRequestSchema = z.object({
   email: z.string().trim().email().max(320),
@@ -144,6 +145,12 @@ export async function secureFetch(request: Request) {
     const auth = await mutationUser(token);
     if (auth.response || !auth.user) return auth.response!;
     return updateAccount(request, auth.user);
+  }
+
+  if (isWorkshopOperationsRequest(request)) {
+    const auth = await mutationUser(token);
+    if (auth.response || !auth.user) return auth.response!;
+    return handleWorkshopOperations(request, auth.user);
   }
 
   if (isCatalogMutation(request)) {
