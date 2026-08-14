@@ -90,7 +90,7 @@ export async function handleCatalogEdit(request: Request, user: AuthUser): Promi
     }
     const [updated] = await db.update(materials).set({
       name: body.name, category: body.category, unit: body.unit, color: body.color || null,
-      minimumStock: body.minimumStock == null ? null : String(body.minimumStock), notes: body.notes || null, updatedAt: new Date()
+      minimumStock: body.minimumStock == null ? null : String(body.minimumStock), updatedAt: new Date()
     }).where(eq(materials.id, current.id)).returning();
     return json({ ...updated, currentQuantity: await currentQuantity(current.id) });
   }
