@@ -39,15 +39,15 @@ export function NewOrderForm({ data, onCreated }: { data: Bootstrap; onCreated: 
       } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear el pedido."); }
       finally { setSaving(false); }
     }}>
-      <label>Cliente<select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>{data.customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Producto<select value={productId} onChange={(e) => setProductId(e.target.value)}>{data.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Talla<select value={size} onChange={(e) => setSize(e.target.value)}>{["S","M","L","XL","XXL"].map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>Color<input value={color} onChange={(e) => setColor(e.target.value)} required /></label>
-      <label>Fecha prometida<input type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} /></label>
+      <label>Cliente<select name="order-customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>{data.customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Producto<select name="order-product" value={productId} onChange={(e) => setProductId(e.target.value)}>{data.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Talla<select name="order-size" value={size} onChange={(e) => setSize(e.target.value)}>{["S","M","L","XL","XXL"].map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label>Color<input name="order-color" value={color} onChange={(e) => setColor(e.target.value)} required /></label>
+      <label>Fecha prometida<input name="order-delivery-date" type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} /></label>
       {product && <p className="muted">Sugerida: {leadTimeDays} días. Puedes cambiarla.</p>}
       <p className="price">Total: S/ {price.toFixed(2)}</p>
-      <label>Adelanto recibido<input type="number" min="0" max={price} step="0.01" value={advance} onChange={(e) => setAdvance(Number(e.target.value))} /></label>
-      {advance > 0 && <><label>Método<select value={method} onChange={(e) => setMethod(e.target.value)}>{methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Fecha del adelanto<input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} /></label></>}
+      <label>Adelanto recibido<input name="order-advance" type="number" min="0" max={price} step="0.01" value={advance} onChange={(e) => setAdvance(Number(e.target.value))} /></label>
+      {advance > 0 && <><label>Método<select name="order-advance-method" value={method} onChange={(e) => setMethod(e.target.value)}>{methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Fecha del adelanto<input name="order-advance-date" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} /></label></>}
       {error && <p className="error" role="alert">{error}</p>}
       <button disabled={saving || !customerId || !productId}>{saving ? "Guardando..." : "Crear pedido"}</button>
     </form>
