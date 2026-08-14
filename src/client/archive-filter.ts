@@ -30,5 +30,10 @@ export function filterBootstrap(data: Bootstrap, records: ArchiveRecord[]): Boot
 
 export function filterOrderDetail(order: OrderDetail, records: ArchiveRecord[]): OrderDetail {
   const paymentIds = ids(records, "PAYMENT");
-  return { ...order, payments: order.payments.filter((payment) => !paymentIds.has(payment.id)) };
+  const embroideryIds = ids(records, "EMBROIDERY_JOB");
+  return {
+    ...order,
+    payments: order.payments.filter((payment) => !paymentIds.has(payment.id)),
+    embroideryJobs: order.embroideryJobs.filter((job) => !embroideryIds.has(job.id))
+  };
 }
