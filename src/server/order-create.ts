@@ -7,6 +7,7 @@ import { limaBusinessDate, limaBusinessDateTimestamp } from "../domain/workshop"
 import { paymentMethods, sizes } from "../domain/types";
 import type { AuthUser } from "./auth";
 import { isArchived } from "./record-archive";
+import { resolveFabricQty } from "./workshop-size-consumption";
 
 const schema = z.object({
   customerId: z.string().uuid(), productId: z.string().uuid(), size: z.enum(sizes),
@@ -84,7 +85,9 @@ export async function handleOrderCreateWithAdvance(request: Request, user: AuthU
   if (!product) return json({ error: "Producto no encontrado" }, 404);
   const paidAt = body.advanceAmount > 0 ? paymentDate(body.advancePaidAt) : null;
   if (body.advanceAmount > 0 && !paidAt) return json({ error: "Fecha de adelanto inválida" }, 400);
-  const fabricCost = product.defaultFabricMaterialId ? (await weightedAverageCost(product.defaultFabricMaterialId)) * numberValue(product.defaultFabricQtyMeters) : 0;
+  const plannedFabricQty = product.defaultFabricMaterialId ? await resolveFabricQty(product.id, body.size, product.defaultFabricQtyMeters) : null;
+  if (product.defaultFabricMaterialId && plannedFabricQty == null) return json({ error: "Configura el consumo de tela del producto" }, 409);
+  const fabricCost = product.defaultFabricMaterialId && plannedFabricQty != null ? (await weightedAverageCost(product.defaultFabricMaterialId)) * plannedFabricQty : 0;
   const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * numberValue(product.defaultClosureQty) : 0;
   const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * numberValue(product.defaultPackagingQty) : 0;
   const orderNumber = await nextOrderNumber(user.businessId);
@@ -97,7 +100,7 @@ export async function handleOrderCreateWithAdvance(request: Request, user: AuthU
     await tx.insert(orderItems).values({
       orderId: order.id, productId: product.id, size: body.size, color: body.color, quantity: body.quantity,
       agreedUnitPrice: String(body.agreedTotalPrice / body.quantity), fabricMaterialId: product.defaultFabricMaterialId,
-      plannedFabricQty: product.defaultFabricQtyMeters,
+      plannedFabricQty: plannedFabricQty == null ? null : String(plannedFabricQty),
       estimatedMaterialCost: fabricCost + closureCost > 0 ? String(roundMoney(fabricCost + closureCost)) : null,
       estimatedOwnLaborCost: product.defaultOwnLaborCost,
       estimatedPackagingCost: packagingCost > 0 ? String(roundMoney(packagingCost)) : null,
