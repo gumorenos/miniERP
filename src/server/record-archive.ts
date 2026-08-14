@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { customers, embroideryJobs, materials, orderItems, orders, payments, products, stockMovements } from "../db/schema";
+import { customers, materials, orderItems, orders, payments, products, stockMovements } from "../db/schema";
 import type { AuthUser } from "./auth";
 
 export const archiveEntityTypes = ["CUSTOMER", "PRODUCT", "MATERIAL", "ORDER", "PAYMENT"] as const;
