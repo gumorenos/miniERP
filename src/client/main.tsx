@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { api, clearToken, getToken, setToken, type Bootstrap, type Customer, type OrderDetail } from "./api";
+import { api, clearToken, getToken, setToken, type Bootstrap, type OrderDetail } from "./api";
+import { CustomerManager } from "./customer-manager";
 import { ProductsManager } from "./products-manager";
 import { InventoryManager } from "./inventory-manager";
+import { suggestedDeliveryDate } from "../domain/workshop";
 
 const statusLabels: Record<string, string> = {
   ORDER_RECEIVED: "Recibido",
@@ -34,6 +36,11 @@ function App() {
     if (selectedOrder) setSelectedOrder(await api.getOrder(selectedOrder.id));
   };
 
+  const openOrder = async (id: string) => {
+    setSelectedOrder(await api.getOrder(id));
+    setScreen("orderDetail");
+  };
+
   useEffect(() => {
     if (token) reload().catch((err) => setError(err.message));
   }, [token]);
@@ -46,10 +53,10 @@ function App() {
   return (
     <Shell data={data} error={error} onLogout={() => logout(setSessionToken)} screen={screen} setScreen={setScreen}>
       {screen === "dashboard" && <Dashboard data={data} />}
-      {screen === "orders" && <Orders data={data} onOpen={async (id) => { setSelectedOrder(await api.getOrder(id)); setScreen("orderDetail"); }} />}
+      {screen === "orders" && <Orders data={data} onOpen={openOrder} />}
       {screen === "newOrder" && <NewOrder data={data} onCreated={async (order) => { await reload(); setSelectedOrder(order); setScreen("orderDetail"); }} />}
       {screen === "orderDetail" && selectedOrder && <OrderDetailView order={selectedOrder} data={data} onReload={async () => { const order = await api.getOrder(selectedOrder.id); setSelectedOrder(order); await reload(); }} />}
-      {screen === "customers" && <Customers data={data} onCreated={reload} />}
+      {screen === "customers" && <CustomerManager data={data} onChanged={reload} onOpenOrder={openOrder} />}
       {screen === "products" && <ProductsManager data={data} onChanged={reload} />}
       {screen === "inventory" && <InventoryManager data={data} onChanged={reload} />}
     </Shell>
@@ -116,14 +123,18 @@ function NewOrder({ data, onCreated }: { data: Bootstrap; onCreated: (order: Ord
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [productId, setProductId] = useState(product?.id ?? "");
   const selectedProduct = data.products.find((item) => item.id === productId) ?? product;
+  const leadTimeDays = Number((selectedProduct as unknown as { leadTimeDays?: number } | undefined)?.leadTimeDays ?? 25);
   const [size, setSize] = useState("S");
   const [color, setColor] = useState("Negro");
   const price = useMemo(() => {
     const sizeRow = selectedProduct?.sizePrices.find((row) => row.size === size);
     return Number(sizeRow?.fixedPrice ?? selectedProduct?.baseSalePrice ?? 0) + Number(sizeRow?.priceAdjustment ?? 0);
   }, [selectedProduct, size]);
-  const [promisedDeliveryDate, setPromisedDeliveryDate] = useState("");
+  const [promisedDeliveryDate, setPromisedDeliveryDate] = useState(product ? suggestedDeliveryDate(Number((product as unknown as { leadTimeDays?: number }).leadTimeDays ?? 25)) : "");
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (selectedProduct) setPromisedDeliveryDate(suggestedDeliveryDate(leadTimeDays));
+  }, [productId, leadTimeDays]);
   return <section><h2>Nuevo pedido</h2>
     {!data.customers.length && <p className="warning">Crea un cliente primero.</p>}
     {!data.products.length && <p className="warning">Crea un producto primero.</p>}
@@ -133,6 +144,7 @@ function NewOrder({ data, onCreated }: { data: Bootstrap; onCreated: (order: Ord
       <label>Talla<select value={size} onChange={(event) => setSize(event.target.value)}>{["S", "M", "L", "XL", "XXL"].map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Color<input value={color} onChange={(event) => setColor(event.target.value)} /></label>
       <label>Fecha prometida<input type="date" value={promisedDeliveryDate} onChange={(event) => setPromisedDeliveryDate(event.target.value)} /></label>
+      <p className="muted">Sugerida por el producto: {leadTimeDays} días. Puedes cambiarla.</p>
       <p className="price">Precio configurable: {fmt(price)}</p>{error && <p className="error">{error}</p>}<button disabled={!customerId || !productId}>Crear pedido</button>
     </form>
   </section>;
@@ -149,12 +161,6 @@ function OrderDetailView({ order, data, onReload }: { order: OrderDetail; data: 
     <section><h2>Pagos</h2><form className="inline" onSubmit={async (event) => { event.preventDefault(); await api.pay(order.id, { amount: payment, method }); await onReload(); }}><input type="number" min="0" step="0.01" value={payment} onChange={(event) => setPayment(Number(event.target.value))} /><select value={method} onChange={(event) => setMethod(event.target.value)}><option value="YAPE">Yape</option><option value="PLIN">Plin</option><option value="CASH">Efectivo</option><option value="BANK_TRANSFER">Transferencia</option><option value="OTHER">Otro</option></select><button>Registrar</button></form><div className="list">{order.payments.map((item) => <div className="row static" key={item.id}><span>{item.method}<small>{new Date(item.paidAt).toLocaleDateString()}</small></span><strong>{fmt(item.amount)}</strong></div>)}</div></section>
     <section><h2>Bordado</h2>{order.embroideryJobs.length ? order.embroideryJobs.map((job) => <p className={job.overdueDays > 0 ? "warning" : "muted"} key={job.id}>{job.status} · retorno {job.expectedReturnDate ?? "-"} · atraso {job.overdueDays} dias</p>) : <p className="muted">Sin bordado registrado.</p>}</section>
   </div>;
-}
-
-function Customers({ data, onCreated }: { data: Bootstrap; onCreated: () => Promise<void> }) {
-  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [instagramHandle, setInstagramHandle] = useState(""); const [notes, setNotes] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false);
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const cleanName = name.trim(); setError(""); setSuccess(""); if (cleanName.length < 2) return setError("Ingresa un nombre de al menos 2 caracteres."); setSaving(true); try { await api.createCustomer({ name: cleanName, phone: phone.trim() || null, instagramHandle: instagramHandle.trim() || null, notes: notes.trim() || null }); setName(""); setPhone(""); setInstagramHandle(""); setNotes(""); await onCreated(); setSuccess("Cliente creado correctamente."); } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear el cliente."); } finally { setSaving(false); } };
-  return <div className="stack"><section><h2>Nuevo cliente</h2><form className="form" onSubmit={submit}><label>Nombre *<input name="customer-name" autoComplete="name" placeholder="Nombre del cliente" value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label><label>Teléfono<input name="customer-phone" autoComplete="tel" inputMode="tel" placeholder="Ej. 999 999 999" value={phone} onChange={(event) => setPhone(event.target.value)} /></label><label>Instagram<input name="customer-instagram" autoComplete="off" placeholder="Ej. @cliente" value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} /></label><label>Notas<input name="customer-notes" autoComplete="off" placeholder="Talla habitual, preferencias u otra referencia" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>{error && <p className="error" role="alert">{error}</p>}{success && <p className="login-success" role="status">{success}</p>}<button type="submit" disabled={saving || name.trim().length < 2}>{saving ? "Guardando..." : "Crear cliente"}</button></form></section><section><h2>Clientes</h2>{data.customers.length === 0 ? <p className="muted">Todavía no hay clientes registrados.</p> : <div className="list">{data.customers.map((customer: Customer) => <div className="row static" key={customer.id}><span><strong>{customer.name}</strong><small>{customer.phone ?? customer.instagramHandle ?? "Sin contacto"}</small></span></div>)}</div>}</section></div>;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
