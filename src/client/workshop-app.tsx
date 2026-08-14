@@ -9,6 +9,10 @@ import { ProductsManager } from "./products-manager";
 import { InventoryManager } from "./inventory-manager";
 import { NewOrderForm } from "./new-order-form";
 import { OrderDetailView } from "./order-detail-view";
+import { SizeConsumptionPanel } from "./size-consumption-panel";
+import { AgendaView } from "./agenda-view";
+import { FinanceManager } from "./finance-manager";
+import { MoneyView } from "./money-view";
 
 export function WorkshopApp() {
   const [data, setData] = useState<Bootstrap | null>(null);
@@ -22,9 +26,7 @@ export function WorkshopApp() {
     return archived.records;
   };
 
-  const reload = async (): Promise<void> => {
-    await loadActiveData();
-  };
+  const reload = async (): Promise<void> => { await loadActiveData(); };
 
   const openOrder = async (id: string) => {
     setError(null);
@@ -49,11 +51,14 @@ export function WorkshopApp() {
 
   return <WorkshopShell data={data} screen={screen} setScreen={setScreen} error={error}>
     {screen === "dashboard" && <DashboardView data={data} />}
+    {screen === "agenda" && <AgendaView onOpenOrder={openOrder} />}
     {screen === "orders" && <OrdersView rows={data.orders} onOpen={openOrder} />}
     {screen === "newOrder" && <NewOrderForm data={data} onCreated={async (order) => { const archived = await loadActiveData(); setSelectedOrder(filterOrderDetail(order, archived)); setScreen("orderDetail"); }} />}
     {screen === "orderDetail" && selectedOrder && <OrderDetailView order={selectedOrder} data={data} onReload={reloadSelectedOrder} onArchived={async () => { setSelectedOrder(null); setScreen("orders"); await reload(); }} />}
     {screen === "customers" && <CustomerManager data={data} onChanged={reload} onOpenOrder={openOrder} />}
-    {screen === "products" && <ProductsManager data={data} onChanged={reload} />}
+    {screen === "products" && <div className="stack"><ProductsManager data={data} onChanged={reload} /><SizeConsumptionPanel data={data} /></div>}
     {screen === "inventory" && <InventoryManager data={data} onChanged={reload} />}
+    {screen === "finance" && <FinanceManager data={data} onChanged={reload} />}
+    {screen === "money" && <MoneyView />}
   </WorkshopShell>;
 }
