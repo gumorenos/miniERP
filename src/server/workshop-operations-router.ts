@@ -1,6 +1,7 @@
 import type { AuthUser } from "./auth";
 import { workshopAgenda } from "./workshop-agenda";
 import { archiveExpense, listExpenses, saveExpense } from "./workshop-expenses";
+import { listFinishedStock, saveFinishedStock } from "./workshop-finished-stock";
 import { readyForDelivery, startAssembly } from "./workshop-material-use";
 import { archivePurchase, createPurchase, listPurchases, updatePurchase } from "./workshop-purchases";
 import { moneySummary } from "./workshop-money";
@@ -14,7 +15,7 @@ export function isWorkshopOperationsRequest(request: Request) {
   const path = new URL(request.url).pathname;
   if (!path.startsWith(base)) return false;
   if (orderAction.test(path)) return true;
-  return ["/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption"].includes(path);
+  return ["/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock"].includes(path);
 }
 
 function json(payload: unknown, status = 200) {
@@ -27,6 +28,10 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
   if (actionMatch && request.method === "POST") return actionMatch[2] === "assembly" ? startAssembly(user,actionMatch[1]) : readyForDelivery(user,actionMatch[1]);
   if (path === "/api/workshop/agenda" && request.method === "GET") return workshopAgenda(user);
   if (path === "/api/workshop/money" && request.method === "GET") return moneySummary(request, user);
+  if (path === "/api/workshop/finished-stock") {
+    if (request.method === "GET") return listFinishedStock(user);
+    if (request.method === "POST") return saveFinishedStock(request,user);
+  }
   if (path === "/api/workshop/size-consumption") {
     if (request.method === "GET") return listSizeConsumption(user);
     if (request.method === "POST") return saveSizeConsumption(request, user);
