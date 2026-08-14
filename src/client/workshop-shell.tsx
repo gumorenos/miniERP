@@ -9,13 +9,14 @@ const tabs = [
   ["customers", "Clientes"],
   ["products", "Productos"],
   ["inventory", "Inventario"],
+  ["providers", "Bordadores"],
   ["finance", "Compras/Gastos"],
   ["money", "Dinero"]
 ] as const;
 
 const titles: Record<string, string> = {
   dashboard: "Taller", agenda: "Agenda", orders: "Pedidos", newOrder: "Nuevo pedido", orderDetail: "Detalle del pedido",
-  customers: "Clientes", products: "Productos", inventory: "Inventario", finance: "Compras y gastos", money: "Dinero"
+  customers: "Clientes", products: "Productos", inventory: "Inventario", providers: "Bordadores", finance: "Compras y gastos", money: "Dinero"
 };
 
 export function WorkshopShell({ data, screen, setScreen, error, children }: { data: Bootstrap; screen: string; setScreen: (screen: string) => void; error?: string | null; children: React.ReactNode }) {
