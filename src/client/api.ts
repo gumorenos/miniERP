@@ -123,9 +123,16 @@ export function clearToken() {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...options.headers } });
+  const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(payload.error ?? "Error de API");
+    const raw = await response.text().catch(() => "");
+    let message = "";
+    if (contentType.includes("application/json")) {
+      try { message = (JSON.parse(raw) as { error?: string }).error ?? ""; } catch { /* use the status fallback */ }
+    }
+    if (!message && response.status === 409) message = "No se puede completar porque el registro todavía tiene información relacionada.";
+    if (!message) message = `No se pudo completar la acción (${response.status}).`;
+    throw new Error(message);
   }
   return response.json() as Promise<T>;
 }

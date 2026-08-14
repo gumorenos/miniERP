@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { customers, materials, orderItems, orders, payments, products, stockMovements } from "../db/schema";
+import { customers, embroideryJobs, materials, orderItems, orders, payments, products, stockMovements } from "../db/schema";
 import type { AuthUser } from "./auth";
 
 export const archiveEntityTypes = ["CUSTOMER", "PRODUCT", "MATERIAL", "ORDER", "PAYMENT"] as const;
@@ -18,6 +18,15 @@ export async function isArchived(businessId: string, entityType: ArchiveEntityTy
 }
 
 export async function archiveRecord(request: Request, user: AuthUser) {
+  try {
+    return await archiveRecordUnsafe(request, user);
+  } catch (error) {
+    console.error("archive_record_failed", error);
+    return json({ error: "No se pudo borrar el registro. No se hicieron cambios; inténtalo nuevamente." }, 500);
+  }
+}
+
+async function archiveRecordUnsafe(request: Request, user: AuthUser) {
   const parsed = archiveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "Registro inválido" }, 400);
   const { entityType, id } = parsed.data;
@@ -94,15 +103,14 @@ export async function archiveRecord(request: Request, user: AuthUser) {
   const activePaid = paymentRows.reduce((sum,payment)=>sum+Number(payment.amount),0);
   if (activePaid > 0) return json({ error:"El pedido tiene pagos. Borra o corrige esos pagos antes de borrar el pedido." },409);
   if (itemIds.length) {
-    const movements = await db.select({id:stockMovements.id}).from(stockMovements).where(inArray(stockMovements.orderItemId,itemIds)).limit(1);
+    const movements = await db.select({id:stockMovements.id}).from(stockMovements).where(and(inArray(stockMovements.orderItemId,itemIds),sql`${stockMovements.quantitySigned} <> 0`)).limit(1);
     if (movements.length) return json({ error:"El pedido ya afectó inventario y no puede borrarse." },409);
-    const jobs = await db.execute(sql`
-      select ej.id from embroidery_jobs ej
-      where ej.order_item_id = any(${itemIds}::uuid[])
-        and not exists (select 1 from deleted_records d where d.business_id=${user.businessId}::uuid and d.entity_type='EMBROIDERY_JOB' and d.entity_id=ej.id)
-      limit 1
-    `);
-    if (jobs.rows.length) return json({ error:"El pedido todavía tiene trabajo de bordado y no puede borrarse." },409);
+    const jobs = await db.select({ id: embroideryJobs.id }).from(embroideryJobs).where(and(
+      inArray(embroideryJobs.orderItemId, itemIds),
+      sql`${embroideryJobs.status} <> 'CANCELLED'`,
+      sql`not exists (select 1 from deleted_records d where d.business_id=${user.businessId}::uuid and d.entity_type='EMBROIDERY_JOB' and d.entity_id=${embroideryJobs.id})`
+    )).limit(1);
+    if (jobs.length) return json({ error:"El pedido todavía tiene trabajo de bordado y no puede borrarse." },409);
   }
   await db.transaction(async(tx)=>{
     await tx.execute(sql`insert into deleted_records (business_id,entity_type,entity_id,snapshot) values (${user.businessId}::uuid,${entityType},${id}::uuid,${JSON.stringify({order,items,payments:paymentRows})}::jsonb) on conflict (business_id,entity_type,entity_id) do nothing`);

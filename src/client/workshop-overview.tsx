@@ -12,10 +12,11 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-export function DashboardView({ data }: { data: Bootstrap }) {
+export function DashboardView({ data, onAction }: { data: Bootstrap; onAction?: (action: "order" | "purchase" | "expense" | "adjustment") => void }) {
   const urgent = [...data.dashboard.lateOrders, ...data.dashboard.dueSoon].filter((row, index, all) => all.findIndex((item) => item.id === row.id) === index).slice(0, 5);
   const lowStock = data.materials.filter((material) => Number(material.minimumStock ?? 0) > 0 && material.currentQuantity <= Number(material.minimumStock)).sort((a,b) => a.currentQuantity - b.currentQuantity).slice(0, 6);
   return <div className="stack">
+    <section className="welcome-panel"><div><p className="eyebrow">Samiiwara · taller</p><h2>¿Qué requiere atención hoy?</h2><p className="muted">Registra primero. Los detalles pueden esperar.</p></div><div className="quick-actions"><button type="button" onClick={() => onAction?.("order")}><span>＋</span> Pedido</button><button type="button" className="quick-purple" onClick={() => onAction?.("purchase")}><span>＋</span> Compra</button><button type="button" className="quick-orange" onClick={() => onAction?.("expense")}><span>＋</span> Gasto</button><button type="button" className="quick-teal" onClick={() => onAction?.("adjustment")}><span>＋</span> Ajuste</button></div></section>
     <section className="metrics">
       <Metric label="Activos" value={data.dashboard.activeOrders} />
       <Metric label="Bordador" value={data.dashboard.atEmbroidery} />
@@ -23,14 +24,24 @@ export function DashboardView({ data }: { data: Bootstrap }) {
       <Metric label="Por cobrar" value={money(data.dashboard.money.receivable)} />
       <Metric label="Margen ref." value={money(data.dashboard.money.margin)} />
     </section>
-    <section><h2>Urgente</h2>{urgent.length ? <OrderRows rows={urgent} /> : <p className="muted">Sin pedidos urgentes.</p>}{data.dashboard.lateEmbroideryJobs.length > 0 && <p className="warning">Hay {data.dashboard.lateEmbroideryJobs.length} bordado(s) atrasado(s).</p>}</section>
+    <section><h2>Agenda del taller</h2><p className="muted">Entregas próximas, vencidas y trabajos que requieren atención.</p>{urgent.length ? <OrderRows rows={urgent} /> : <p className="muted">No hay entregas que requieran atención inmediata.</p>}{data.dashboard.lateEmbroideryJobs.length > 0 && <p className="warning">Hay {data.dashboard.lateEmbroideryJobs.length} bordado(s) atrasado(s).</p>}</section>
     <section><h2>Inventario bajo</h2>{lowStock.length ? <div className="list">{lowStock.map((material) => <div className="row static" key={material.id}><span><strong>{material.name}</strong><small>{material.color || material.category} · mínimo {Number(material.minimumStock).toFixed(2)}</small></span><strong>{material.currentQuantity.toFixed(2)} {material.unit === "METER" ? "m" : "un."}</strong></div>)}</div> : <p className="muted">No hay materiales por debajo de su mínimo configurado.</p>}</section>
-    <section><h2>Dinero</h2><div className="money-grid"><span>Ventas acordadas</span><strong>{money(data.dashboard.money.sales)}</strong><span>Cobrado</span><strong>{money(data.dashboard.money.collected)}</strong><span>Por cobrar</span><strong>{money(data.dashboard.money.receivable)}</strong></div><p className="muted">Para flujo mensual de caja, compras y gastos usa la pestaña Dinero.</p></section>
+    <section><h2>Dinero</h2><div className="money-grid"><span>Ventas acordadas</span><strong>{money(data.dashboard.money.sales)}</strong><span>Cobrado</span><strong>{money(data.dashboard.money.collected)}</strong><span>Por cobrar</span><strong>{money(data.dashboard.money.receivable)}</strong></div><p className="muted">Compras, gastos y flujo mensual están juntos en Dinero.</p></section>
   </div>;
 }
 
-export function OrdersView({ rows, onOpen }: { rows: OrderSummary[]; onOpen: (id: string) => void }) {
-  return <section><h2>Pedidos</h2>{rows.length ? <OrderRows rows={rows} onOpen={onOpen} /> : <p className="muted">Sin pedidos todavía.</p>}</section>;
+const orderFilters = [["all", "Todos"], ["active", "Activos"], ["production", "Producción"], ["ready", "Listos"], ["closed", "Cerrados"]] as const;
+
+export function OrdersView({ rows, onOpen, onNew }: { rows: OrderSummary[]; onOpen: (id: string) => void; onNew?: () => void }) {
+  const [filter, setFilter] = React.useState<(typeof orderFilters)[number][0]>("active");
+  const filtered = rows.filter((row) => {
+    if (filter === "active") return !["CLOSED", "CANCELLED"].includes(row.status);
+    if (filter === "production") return ["MATERIAL_PENDING", "READY_TO_CUT", "CUT", "AT_EMBROIDERER", "EMBROIDERY_RECEIVED", "ASSEMBLY"].includes(row.status);
+    if (filter === "ready") return ["READY_FOR_DELIVERY", "DELIVERED"].includes(row.status);
+    if (filter === "closed") return ["CLOSED", "CANCELLED"].includes(row.status);
+    return true;
+  });
+  return <section><div className="section-heading"><div><p className="eyebrow">Operación</p><h2>Pedidos</h2><p className="muted">Todo el flujo del taller, en un solo lugar.</p></div><button type="button" onClick={onNew}>＋ Nuevo pedido</button></div><div className="filter-pills" role="tablist" aria-label="Filtrar pedidos">{orderFilters.map(([id, label]) => <button type="button" role="tab" aria-selected={filter === id} className={filter === id ? "selected" : ""} key={id} onClick={() => setFilter(id)}>{label}{id === "all" ? ` · ${rows.length}` : ""}</button>)}</div>{filtered.length ? <OrderRows rows={filtered} onOpen={onOpen} /> : <div className="empty-state"><span className="empty-mark">✦</span><p>No hay pedidos en este grupo.</p><button className="ghost" type="button" onClick={onNew}>Registrar un pedido</button></div>}</section>;
 }
 
 function OrderRows({ rows, onOpen }: { rows: OrderSummary[]; onOpen?: (id: string) => void }) {

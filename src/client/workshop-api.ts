@@ -10,9 +10,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers
     }
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((payload as { error?: string }).error ?? "Error de API");
-  return payload as T;
+  const contentType = response.headers.get("content-type") ?? "";
+  const raw = await response.text().catch(() => "");
+  let payload: { error?: string } = {};
+  if (contentType.includes("application/json")) {
+    try { payload = JSON.parse(raw) as { error?: string }; } catch { /* use the status fallback */ }
+  }
+  if (!response.ok) {
+    throw new Error(payload.error ?? (response.status === 409
+      ? "No se puede completar porque el registro todavía tiene información relacionada."
+      : `No se pudo completar la acción (${response.status}).`));
+  }
+  return (contentType.includes("application/json") && raw ? JSON.parse(raw) as T : {}) as T;
 }
 
 export type ArchiveEntityType = "CUSTOMER" | "PRODUCT" | "MATERIAL" | "ORDER" | "PAYMENT" | "PROVIDER" | "EMBROIDERY_JOB";
