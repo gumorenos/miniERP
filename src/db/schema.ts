@@ -72,7 +72,8 @@ export const productSizePrices = pgTable(
     productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
     size: text("size").notNull(),
     priceAdjustment: numeric("price_adjustment", { precision: 12, scale: 2 }).default("0").notNull(),
-    fixedPrice: numeric("fixed_price", { precision: 12, scale: 2 })
+    fixedPrice: numeric("fixed_price", { precision: 12, scale: 2 }),
+    fabricQtyMeters: numeric("fabric_qty_meters", { precision: 12, scale: 3 })
   },
   (table) => [unique().on(table.productId, table.size)]
 );
@@ -108,6 +109,10 @@ export const orderItems = pgTable("order_items", {
   fabricMaterialId: uuid("fabric_material_id").references(() => materials.id),
   plannedFabricQty: numeric("planned_fabric_qty", { precision: 12, scale: 3 }),
   actualFabricQty: numeric("actual_fabric_qty", { precision: 12, scale: 3 }),
+  closureMaterialId: uuid("closure_material_id").references(() => materials.id),
+  plannedClosureQty: numeric("planned_closure_qty", { precision: 12, scale: 3 }),
+  packagingMaterialId: uuid("packaging_material_id").references(() => materials.id),
+  plannedPackagingQty: numeric("planned_packaging_qty", { precision: 12, scale: 3 }),
   estimatedMaterialCost: numeric("estimated_material_cost", { precision: 12, scale: 2 }),
   actualMaterialCost: numeric("actual_material_cost", { precision: 12, scale: 2 }),
   estimatedOwnLaborCost: numeric("estimated_own_labor_cost", { precision: 12, scale: 2 }),
@@ -161,7 +166,11 @@ export const stockMovements = pgTable(
     orderItemId: uuid("order_item_id").references(() => orderItems.id),
     notes: text("notes")
   },
-  (table) => [uniqueIndex("one_cut_consumption_per_item").on(table.orderItemId).where(sql`${table.type} = 'ORDER_CONSUMPTION' AND ${table.orderItemId} IS NOT NULL`)]
+  (table) => [
+    uniqueIndex("one_cut_consumption_per_item").on(table.orderItemId).where(sql`${table.type} = 'ORDER_CONSUMPTION' AND ${table.orderItemId} IS NOT NULL`),
+    uniqueIndex("one_closure_consumption_per_item").on(table.orderItemId).where(sql`${table.type} = 'ORDER_CLOSURE_CONSUMPTION' AND ${table.orderItemId} IS NOT NULL`),
+    uniqueIndex("one_packaging_consumption_per_item").on(table.orderItemId).where(sql`${table.type} = 'ORDER_PACKAGING_CONSUMPTION' AND ${table.orderItemId} IS NOT NULL`)
+  ]
 );
 
 export const payments = pgTable("payments", {
