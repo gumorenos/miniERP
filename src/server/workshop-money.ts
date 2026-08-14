@@ -14,6 +14,10 @@ function monthRange(value?: string | null) {
   return { month, start: `${month}-01`, next };
 }
 
+function scalar(result: { rows: readonly Record<string, unknown>[] }) {
+  return Number(result.rows[0]?.value ?? 0);
+}
+
 export async function moneySummary(request: Request, user: AuthUser) {
   const { month, start, next } = monthRange(new URL(request.url).searchParams.get("month"));
   const [salesResult, collectedResult, purchaseResult, expenseResult, receivableResult] = await Promise.all([
@@ -56,11 +60,11 @@ export async function moneySummary(request: Request, user: AuthUser) {
         and not exists (select 1 from deleted_records d where d.business_id=o.business_id and d.entity_type='ORDER' and d.entity_id=o.id)
     `)
   ]);
-  const number = (result: { rows: Record<string, unknown>[] }) => Number(result.rows[0]?.value ?? 0);
-  const sales = number(salesResult as never);
-  const collected = number(collectedResult as never);
-  const purchases = number(purchaseResult as never);
-  const expenses = number(expenseResult as never);
-  const receivable = number(receivableResult as never);
+
+  const sales = scalar(salesResult as { rows: readonly Record<string, unknown>[] });
+  const collected = scalar(collectedResult as { rows: readonly Record<string, unknown>[] });
+  const purchases = scalar(purchaseResult as { rows: readonly Record<string, unknown>[] });
+  const expenses = scalar(expenseResult as { rows: readonly Record<string, unknown>[] });
+  const receivable = scalar(receivableResult as { rows: readonly Record<string, unknown>[] });
   return json({ month, sales, collected, purchases, expenses, receivable, netCash: collected - purchases - expenses });
 }
