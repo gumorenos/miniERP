@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { calculateCustomerMetrics, suggestedDeliveryDate } from "./workshop";
+import { calculateCustomerMetrics, limaBusinessDate, limaBusinessDateTimestamp, localDateInputValue, suggestedDeliveryDate } from "./workshop";
 
 describe("workshop helpers", () => {
   it("calculates suggested dates", () => {
     const base = new Date("2026-08-13T12:00:00-05:00");
     expect(suggestedDeliveryDate(25, base)).toBe("2026-09-07");
     expect(suggestedDeliveryDate(-3, base)).toBe("2026-08-13");
+  });
+
+  it("keeps date inputs on the browser local calendar day", () => {
+    const lateLocalTime = new Date(2026, 7, 13, 23, 30, 0);
+    expect(localDateInputValue(lateLocalTime)).toBe("2026-08-13");
+  });
+
+  it("uses the Lima business day across the UTC date rollover", () => {
+    const utcAfterMidnight = new Date("2026-08-14T02:30:00.000Z");
+    expect(limaBusinessDate(utcAfterMidnight)).toBe("2026-08-13");
+    expect(limaBusinessDateTimestamp(utcAfterMidnight).toISOString()).toBe("2026-08-13T12:00:00.000Z");
   });
 
   it("summarizes customer orders", () => {

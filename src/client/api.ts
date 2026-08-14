@@ -11,6 +11,7 @@ export type Product = {
   name: string;
   type: string;
   baseSalePrice: string;
+  leadTimeDays?: number;
   defaultFabricMaterialId?: string | null;
   defaultFabricQtyMeters?: string | null;
   defaultClosureMaterialId?: string | null;
@@ -44,6 +45,7 @@ export type OrderSummary = {
   orderNumber: string;
   customerName: string;
   status: string;
+  orderDate?: string;
   promisedDeliveryDate?: string | null;
   agreedTotalPrice: string;
 };

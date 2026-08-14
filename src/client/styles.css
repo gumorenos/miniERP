@@ -35,7 +35,20 @@ button:hover { background: var(--berry-dark); }
 button:active { transform: translateY(1px); }
 button.secondary { background: #3d6865; }
 button.ghost { background: #efe4d7; color: var(--ink); }
+button.ghost.danger { color: #922a34; background: #f8e8e8; }
 button:disabled { opacity: .45; cursor: not-allowed; }
+.button-link {
+  min-height: 42px;
+  border-radius: 10px;
+  background: #efe4d7;
+  color: var(--ink);
+  padding: 10px 14px;
+  font-weight: 780;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .login {
   min-height: 100vh;

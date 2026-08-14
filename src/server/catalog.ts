@@ -4,6 +4,8 @@ import { db } from "../db/client";
 import { materials, productSizePrices, products, stockMovements } from "../db/schema";
 import { sizes } from "../domain/types";
 import type { AuthUser } from "./auth";
+import { listArchivedRecords } from "./archive-query";
+import { archiveRecord, isArchived } from "./record-archive";
 
 const materialCategories = ["FABRIC", "CLOSURE", "THREAD", "PACKAGING", "OTHER"] as const;
 const materialUnits = ["METER", "EACH", "SPOOL", "UNIT"] as const;
@@ -57,6 +59,7 @@ async function parseJson(request: Request) {
 }
 
 async function requireBusinessMaterial(businessId: string, id: string, expectedCategory?: string) {
+  if (await isArchived(businessId, "MATERIAL", id)) return null;
   const [material] = await db
     .select()
     .from(materials)
@@ -76,13 +79,18 @@ async function currentQuantity(materialId: string) {
 }
 
 export function isCatalogMutation(request: Request) {
-  if (request.method !== "POST") return false;
   const pathname = new URL(request.url).pathname;
+  if (pathname === "/api/archive" && (request.method === "GET" || request.method === "POST")) return true;
+  if (request.method !== "POST") return false;
   return pathname === "/api/products" || pathname === "/api/materials" || /^\/api\/materials\/[0-9a-f-]+\/stock$/i.test(pathname);
 }
 
 export async function handleCatalogMutation(request: Request, user: AuthUser): Promise<Response> {
   const pathname = new URL(request.url).pathname;
+
+  if (pathname === "/api/archive") {
+    return request.method === "GET" ? listArchivedRecords(user) : archiveRecord(request, user);
+  }
 
   if (pathname === "/api/materials") {
     const parsed = materialSchema.safeParse(await parseJson(request));
@@ -122,7 +130,7 @@ export async function handleCatalogMutation(request: Request, user: AuthUser): P
   if (stockMatch) {
     const materialId = stockMatch[1];
     const material = await requireBusinessMaterial(user.businessId, materialId);
-    if (!material) return json({ error: "Material no encontrado" }, 404);
+    if (!material) return json({ error: "Material no encontrado o borrado" }, 404);
     const parsed = stockEntrySchema.safeParse(await parseJson(request));
     if (!parsed.success) return json({ error: "Revisa cantidad y costo de la entrada" }, 400);
 
@@ -147,13 +155,13 @@ export async function handleCatalogMutation(request: Request, user: AuthUser): P
     const packagingId = body.defaultPackagingMaterialId || null;
 
     if (fabricId && !(await requireBusinessMaterial(user.businessId, fabricId, "FABRIC"))) {
-      return json({ error: "La tela seleccionada no pertenece a este negocio" }, 400);
+      return json({ error: "La tela seleccionada no pertenece al negocio o fue borrada" }, 400);
     }
     if (closureId && !(await requireBusinessMaterial(user.businessId, closureId, "CLOSURE"))) {
-      return json({ error: "El cierre seleccionado no pertenece a este negocio" }, 400);
+      return json({ error: "El cierre seleccionado no pertenece al negocio o fue borrado" }, 400);
     }
     if (packagingId && !(await requireBusinessMaterial(user.businessId, packagingId, "PACKAGING"))) {
-      return json({ error: "El empaque seleccionado no pertenece a este negocio" }, 400);
+      return json({ error: "El empaque seleccionado no pertenece al negocio o fue borrado" }, 400);
     }
     if (fabricId && !body.defaultFabricQtyMeters) return json({ error: "Indica cuánta tela usa la prenda" }, 400);
 
