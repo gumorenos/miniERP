@@ -70,6 +70,8 @@ export async function archiveRecord(request: Request, user: AuthUser) {
       limit 1
     `);
     if (activeOrderUse.rows.length) return json({ error:"Este material todavía está reservado por un pedido abierto y no puede borrarse." },409);
+    const [stock] = await db.select({ qty: sql<string>`coalesce(sum(${stockMovements.quantitySigned}),0)` }).from(stockMovements).where(and(eq(stockMovements.businessId,user.businessId),eq(stockMovements.materialId,row.id)));
+    if (Math.abs(Number(stock?.qty ?? 0)) > 0.0001) return json({ error:"Este material todavía tiene stock físico. Registra un ajuste hasta dejarlo en cero antes de borrarlo." },409);
     await saveArchive(user.businessId,entityType,id,row); return json({ok:true});
   }
 
