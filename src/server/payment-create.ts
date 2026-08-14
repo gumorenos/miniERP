@@ -31,28 +31,16 @@ export async function handlePaymentCreate(request: Request, user: AuthUser, orde
   const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, user.businessId))).limit(1);
   if (!order) return json({ error: "Pedido no encontrado" }, 404);
   if (order.status === "CANCELLED") return json({ error: "No se pueden registrar pagos en un pedido cancelado" }, 409);
+  if (order.status === "CLOSED") return json({ error: "El pedido está cerrado. Corrige un pago existente o reabre el caso antes de registrar dinero nuevo." }, 409);
 
   const current = await db.select({ amount: payments.amount }).from(payments).where(and(eq(payments.orderId, order.id), eq(payments.businessId, user.businessId)));
   const totalAfterPayment = current.reduce((sum, row) => sum + Number(row.amount), 0) + parsed.data.amount;
-  if (totalAfterPayment > Number(order.agreedTotalPrice)) {
-    return json({ error: "Los pagos no pueden superar el total del pedido" }, 409);
-  }
+  if (totalAfterPayment > Number(order.agreedTotalPrice)) return json({ error: "Los pagos no pueden superar el total del pedido" }, 409);
 
   const paidAt = paymentTimestamp(parsed.data.paidAt);
   if (!paidAt) return json({ error: "Fecha de pago inválida" }, 400);
 
-  await db.insert(payments).values({
-    businessId: user.businessId,
-    orderId: order.id,
-    amount: String(parsed.data.amount),
-    method: parsed.data.method,
-    paidAt,
-    notes: parsed.data.notes || null
-  });
-
-  const detailRequest = new Request(new URL(`/api/orders/${order.id}`, request.url), {
-    method: "GET",
-    headers: request.headers
-  });
+  await db.insert(payments).values({ businessId: user.businessId, orderId: order.id, amount: String(parsed.data.amount), method: parsed.data.method, paidAt, notes: parsed.data.notes || null });
+  const detailRequest = new Request(new URL(`/api/orders/${order.id}`, request.url), { method: "GET", headers: request.headers });
   return app.fetch(detailRequest);
 }
