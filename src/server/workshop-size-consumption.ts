@@ -6,9 +6,10 @@ import { sizes } from "../domain/types";
 import type { AuthUser } from "./auth";
 import { isArchived } from "./record-archive";
 
+const optionalQuantity = z.union([z.coerce.number().positive(), z.null()]).optional();
 const quantitiesSchema = z.object({
   productId: z.string().uuid(),
-  quantities: z.record(z.enum(sizes), z.union([z.coerce.number().positive(), z.null()])).partial()
+  quantities: z.object({ S: optionalQuantity, M: optionalQuantity, L: optionalQuantity, XL: optionalQuantity, XXL: optionalQuantity })
 });
 
 function json(payload: unknown, status = 200) {
