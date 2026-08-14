@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, type Bootstrap, type OrderDetail } from "./api";
 import { workshopApi } from "./workshop-api";
+import { operationsApi } from "./operations-api";
 import { filterBootstrap, filterOrderDetail } from "./archive-filter";
 import { WorkshopShell } from "./workshop-shell";
 import { DashboardView, OrdersView } from "./workshop-overview";
@@ -24,8 +25,8 @@ export function WorkshopApp() {
   const [error, setError] = useState<string | null>(null);
 
   const loadActiveData = async () => {
-    const [next, archived] = await Promise.all([api.bootstrap(), workshopApi.archived()]);
-    setData(filterBootstrap(next, archived.records));
+    const [next, dashboard, archived] = await Promise.all([api.bootstrap(), operationsApi.dashboard(), workshopApi.archived()]);
+    setData(filterBootstrap({ ...next, dashboard }, archived.records));
     return archived.records;
   };
 
@@ -42,10 +43,9 @@ export function WorkshopApp() {
 
   const reloadSelectedOrder = async () => {
     if (!selectedOrder) return;
-    const [order, archived] = await Promise.all([api.getOrder(selectedOrder.id), workshopApi.archived()]);
+    const [order, next, dashboard, archived] = await Promise.all([api.getOrder(selectedOrder.id), api.bootstrap(), operationsApi.dashboard(), workshopApi.archived()]);
     setSelectedOrder(filterOrderDetail(order, archived.records));
-    const next = await api.bootstrap();
-    setData(filterBootstrap(next, archived.records));
+    setData(filterBootstrap({ ...next, dashboard }, archived.records));
   };
 
   useEffect(() => { reload().catch((err) => setError(err instanceof Error ? err.message : "No se pudo cargar el taller.")); }, []);
