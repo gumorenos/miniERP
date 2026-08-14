@@ -32,6 +32,11 @@ async function consumeAndTransition(input: { user: AuthUser; orderId: string; ta
   const row = await snapshot(input.orderId, input.user.businessId);
   if (!row) return json({ error: "Pedido no encontrado" }, 404);
   const from = row.order.status as OrderStatus;
+  const allowedSources = input.target === "ASSEMBLY" ? ["CUT", "EMBROIDERY_RECEIVED", "ASSEMBLY"] : ["ASSEMBLY", "READY_FOR_DELIVERY"];
+  if (!allowedSources.includes(from)) {
+    const expected = input.target === "ASSEMBLY" ? "cortado o con bordado recibido" : "en confección";
+    return json({ error: `El pedido debe estar ${expected} antes de esta acción` }, 409);
+  }
   if (!canTransitionOrder(from, input.target)) return json({ error: `No se puede cambiar el pedido de ${from} a ${input.target}` }, 409);
 
   const materialId = input.kind === "closure" ? row.item.closureMaterialId : row.item.packagingMaterialId;
@@ -50,14 +55,7 @@ async function consumeAndTransition(input: { user: AuthUser; orderId: string; ta
 
   await db.transaction(async (tx) => {
     if (materialId && quantity > 0 && !existing) {
-      await tx.insert(stockMovements).values({
-        businessId: input.user.businessId,
-        materialId,
-        type: movementType,
-        quantitySigned: String(-quantity),
-        orderItemId: row.item.id,
-        notes: input.kind === "closure" ? "Consumo de cierre en confección" : "Consumo de empaque al preparar entrega"
-      });
+      await tx.insert(stockMovements).values({ businessId: input.user.businessId, materialId, type: movementType, quantitySigned: String(-quantity), orderItemId: row.item.id, notes: input.kind === "closure" ? "Consumo de cierre en confección" : "Consumo de empaque al preparar entrega" });
     }
     if (from !== input.target) {
       await tx.update(orders).set({ status: input.target, updatedAt: new Date() }).where(eq(orders.id, input.orderId));
