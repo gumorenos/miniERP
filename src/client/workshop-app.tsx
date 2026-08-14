@@ -13,6 +13,7 @@ import { SizeConsumptionPanel } from "./size-consumption-panel";
 import { AgendaView } from "./agenda-view";
 import { FinanceManager } from "./finance-manager";
 import { MoneyView } from "./money-view";
+import { ProvidersManager } from "./providers-manager";
 
 export function WorkshopApp() {
   const [data, setData] = useState<Bootstrap | null>(null);
@@ -58,6 +59,7 @@ export function WorkshopApp() {
     {screen === "customers" && <CustomerManager data={data} onChanged={reload} onOpenOrder={openOrder} />}
     {screen === "products" && <div className="stack"><ProductsManager data={data} onChanged={reload} /><SizeConsumptionPanel data={data} /></div>}
     {screen === "inventory" && <InventoryManager data={data} onChanged={reload} />}
+    {screen === "providers" && <ProvidersManager onChanged={reload} />}
     {screen === "finance" && <FinanceManager data={data} onChanged={reload} />}
     {screen === "money" && <MoneyView />}
   </WorkshopShell>;
