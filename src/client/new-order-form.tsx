@@ -1,23 +1,26 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { localDateInputValue, suggestedDeliveryDate } from "../domain/workshop";
 import { api, type Bootstrap, type Customer, type OrderDetail, type Product } from "./api";
+import { getCapturePreferences, preferredId, rememberOrderPreferences } from "./capture-preferences";
 import { QuickCreateModal, QuickCustomerForm, QuickProductForm } from "./quick-create";
 
 const methods = [["YAPE", "Yape"], ["PLIN", "Plin"], ["CASH", "Efectivo"], ["BANK_TRANSFER", "Transferencia"], ["OTHER", "Otro"]] as const;
 const sizes = ["S", "M", "L", "XL", "XXL"] as const;
 
 export function NewOrderForm({ data, onCreated, onChanged, onCancel }: { data: Bootstrap; onCreated: (order: OrderDetail) => void | Promise<void>; onChanged?: () => Promise<void>; onCancel?: () => void }) {
+  const remembered = getCapturePreferences().order;
   const [customers, setCustomers] = useState(data.customers);
   const [products, setProducts] = useState(data.products);
   const [quickCreate, setQuickCreate] = useState<"customer" | "product" | null>(null);
-  const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [productId, setProductId] = useState(data.products[0]?.id ?? "");
-  const [size, setSize] = useState<(typeof sizes)[number]>("S");
-  const [color, setColor] = useState("Negro");
-  const [delivery, setDelivery] = useState(data.products[0] ? suggestedDeliveryDate(Number(data.products[0].leadTimeDays ?? 25)) : "");
+  const [customerId, setCustomerId] = useState(preferredId(data.customers, remembered?.customerId));
+  const [productId, setProductId] = useState(preferredId(data.products, remembered?.productId));
+  const [size, setSize] = useState<(typeof sizes)[number]>(sizes.includes(remembered?.size as (typeof sizes)[number]) ? remembered?.size as (typeof sizes)[number] : "S");
+  const [color, setColor] = useState(remembered?.color || "Negro");
+  const initialProduct = data.products.find((item) => item.id === productId) ?? data.products[0];
+  const [delivery, setDelivery] = useState(initialProduct ? suggestedDeliveryDate(Number(initialProduct.leadTimeDays ?? 25)) : "");
   const [agreedTotalPrice, setAgreedTotalPrice] = useState(0);
   const [advance, setAdvance] = useState(0);
-  const [method, setMethod] = useState("YAPE");
+  const [method, setMethod] = useState(remembered?.advanceMethod || "YAPE");
   const [paidAt, setPaidAt] = useState(localDateInputValue());
   const [notes, setNotes] = useState("");
   const [details, setDetails] = useState(false);
@@ -50,7 +53,9 @@ export function NewOrderForm({ data, onCreated, onChanged, onCancel }: { data: B
         if (advance < 0 || advance > agreedTotalPrice) return setError("El adelanto debe estar entre cero y el total del pedido.");
         setSaving(true);
         try {
-          await onCreated(await api.createOrder({ customerId, productId, size, color: color.trim(), quantity: 1, agreedTotalPrice, promisedDeliveryDate: delivery || null, advanceAmount: advance, advanceMethod: method, advancePaidAt: advance > 0 ? paidAt : null, notes: notes.trim() || null }));
+          const order = await api.createOrder({ customerId, productId, size, color: color.trim(), quantity: 1, agreedTotalPrice, promisedDeliveryDate: delivery || null, advanceAmount: advance, advanceMethod: method, advancePaidAt: advance > 0 ? paidAt : null, notes: notes.trim() || null });
+          rememberOrderPreferences({ customerId, productId, size, color: color.trim(), advanceMethod: method });
+          await onCreated(order);
         } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear el pedido."); } finally { setSaving(false); }
       }}>
         <div className="capture-grid">
