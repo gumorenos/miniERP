@@ -30,9 +30,9 @@ export function PaymentsEditor({ order, onReload }: { order: OrderDetail; onRelo
         reset(); await onReload();
       } catch (err) { setError(err instanceof Error ? err.message : "No se pudo guardar el pago."); }
     }}>
-      <label>Monto<input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required /></label>
-      <label>Método<select value={method} onChange={(e) => setMethod(e.target.value)}>{methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <label>Fecha de pago<input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} required /></label>
+      <label>Monto<input name="payment-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required /></label>
+      <label>Método<select name="payment-method" value={method} onChange={(e) => setMethod(e.target.value)}>{methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Fecha de pago<input name="payment-date" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} required /></label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions"><button disabled={amount <= 0}>{editingId ? "Guardar pago" : "Registrar pago"}</button>{editingId && <button className="secondary" type="button" onClick={reset}>Cancelar</button>}</div>
     </form>
