@@ -2,6 +2,7 @@ import React from "react";
 import { customerOrderMessage, whatsappUrl } from "../domain/whatsapp";
 import { api, type Bootstrap, type OrderDetail } from "./api";
 import { ArchiveButton } from "./archive-button";
+import { EmbroideryJobHistory } from "./embroidery-job-history";
 import { EmbroideryWorkflow } from "./embroidery-workflow";
 import { operationsApi } from "./operations-api";
 import { OrderEditForm } from "./order-edit-form";
@@ -47,7 +48,6 @@ export function OrderDetailView({ order, data, onReload, onArchived }: { order: 
 
     {!terminal && <EmbroideryWorkflow order={order} data={data} onReload={onReload} />}
     <PaymentsEditor order={order} onReload={onReload} />
-
-    <section><h2>Historial de bordado</h2>{order.embroideryJobs.length ? order.embroideryJobs.map((job) => <p className={job.overdueDays > 0 ? "warning" : "muted"} key={job.id}>{job.status} · retorno {job.expectedReturnDate ?? "-"} · atraso {job.overdueDays} días</p>) : <p className="muted">Sin bordado registrado.</p>}</section>
+    <EmbroideryJobHistory order={order} data={data} onReload={onReload} />
   </div>;
 }
