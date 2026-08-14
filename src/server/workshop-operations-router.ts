@@ -1,5 +1,6 @@
 import type { AuthUser } from "./auth";
 import { workshopAgenda } from "./workshop-agenda";
+import { customerHistory } from "./workshop-customer-history";
 import { operationalDashboard } from "./workshop-dashboard";
 import { archiveEmbroideryJob, updateEmbroideryJob } from "./workshop-embroidery-jobs";
 import { archiveExpense, listExpenses, saveExpense } from "./workshop-expenses";
@@ -14,12 +15,13 @@ import { archiveManualStockEntry, editManualStockEntry, listManualStockEntries }
 const base = "/api/workshop/";
 const orderAction = /^\/api\/workshop\/orders\/([0-9a-f-]+)\/(assembly|ready-delivery)$/i;
 const embroideryJobAction = /^\/api\/workshop\/embroidery-jobs\/([0-9a-f-]+)$/i;
+const customerHistoryAction = /^\/api\/workshop\/customers\/([0-9a-f-]+)\/history$/i;
 const staticPaths = ["/api/workshop/dashboard","/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"];
 
 export function isWorkshopOperationsRequest(request: Request) {
   const path = new URL(request.url).pathname;
   if (!path.startsWith(base)) return false;
-  if (orderAction.test(path) || embroideryJobAction.test(path)) return true;
+  if (orderAction.test(path) || embroideryJobAction.test(path) || customerHistoryAction.test(path)) return true;
   return staticPaths.includes(path);
 }
 
@@ -27,6 +29,8 @@ function json(payload: unknown, status = 200) { return new Response(JSON.stringi
 
 export async function handleWorkshopOperations(request: Request, user: AuthUser) {
   const path = new URL(request.url).pathname;
+  const customerMatch = path.match(customerHistoryAction);
+  if (customerMatch && request.method === "GET") return customerHistory(user, customerMatch[1]);
   const actionMatch = path.match(orderAction);
   if (actionMatch && request.method === "POST") return actionMatch[2] === "assembly" ? startAssembly(user,actionMatch[1]) : readyForDelivery(user,actionMatch[1]);
   const jobMatch = path.match(embroideryJobAction);
