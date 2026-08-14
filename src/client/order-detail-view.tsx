@@ -3,6 +3,7 @@ import { customerOrderMessage, whatsappUrl } from "../domain/whatsapp";
 import { api, type Bootstrap, type OrderDetail } from "./api";
 import { ArchiveButton } from "./archive-button";
 import { EmbroideryWorkflow } from "./embroidery-workflow";
+import { operationsApi } from "./operations-api";
 import { OrderEditForm } from "./order-edit-form";
 import { PaymentsEditor } from "./payments-editor";
 
@@ -20,7 +21,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 export function OrderDetailView({ order, data, onReload, onArchived }: { order: OrderDetail; data: Bootstrap; onReload: () => Promise<void>; onArchived: () => Promise<void> | void }) {
   const item = order.items[0];
   const terminal = order.status === "CANCELLED" || order.status === "CLOSED";
-  const nextActions = [["MATERIAL_PENDING", "Material pendiente"], ["READY_TO_CUT", "Listo para corte"], ["ASSEMBLY", "Confección"], ["READY_FOR_DELIVERY", "Listo para entregar"], ["DELIVERED", "Entregar"], ["CLOSED", "Cerrar"]] as const;
+  const nextActions = [["MATERIAL_PENDING", "Material pendiente"], ["READY_TO_CUT", "Listo para corte"], ["DELIVERED", "Entregar"], ["CLOSED", "Cerrar"]] as const;
   const message = customerOrderMessage({ customerName: order.customer.name, orderNumber: order.orderNumber, status: order.status, balance: order.financials.balance });
   const customerWhatsApp = order.customer.phone ? whatsappUrl(order.customer.phone, message) : null;
 
@@ -36,6 +37,8 @@ export function OrderDetailView({ order, data, onReload, onArchived }: { order: 
 
     <section><h2>Flujo</h2>{terminal ? <p className="muted">Este pedido está {order.status === "CANCELLED" ? "cancelado" : "cerrado"}. Puedes corregir sus datos o borrar pagos, pero no avanzar el flujo.</p> : <div className="actions">
       <button onClick={async () => { await api.cut(order.id); await onReload(); }}>Cortar y descontar tela</button>
+      <button className="secondary" onClick={async () => { await operationsApi.startAssembly(order.id); await onReload(); }}>Iniciar confección</button>
+      <button className="secondary" onClick={async () => { await operationsApi.readyForDelivery(order.id); await onReload(); }}>Listo para entregar</button>
       {nextActions.map(([status, label]) => <button className="secondary" key={status} onClick={async () => { await api.transition(order.id, status); await onReload(); }}>{label}</button>)}
       <button className="ghost danger" onClick={async () => { if (!window.confirm("¿Cancelar este pedido?")) return; await api.transition(order.id, "CANCELLED"); await onReload(); }}>Cancelar pedido</button>
     </div>}</section>
