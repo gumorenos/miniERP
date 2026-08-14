@@ -11,6 +11,7 @@ export type Product = {
   name: string;
   type: string;
   baseSalePrice: string;
+  leadTimeDays?: number;
   defaultFabricMaterialId?: string | null;
   defaultFabricQtyMeters?: string | null;
   defaultClosureMaterialId?: string | null;
@@ -37,6 +38,8 @@ export type Material = {
 export type Provider = {
   id: string;
   name: string;
+  phone?: string | null;
+  notes?: string | null;
 };
 
 export type OrderSummary = {
@@ -44,15 +47,38 @@ export type OrderSummary = {
   orderNumber: string;
   customerName: string;
   status: string;
+  orderDate?: string;
   promisedDeliveryDate?: string | null;
   agreedTotalPrice: string;
 };
 
 export type OrderDetail = OrderSummary & {
   customer: Customer;
-  items: Array<{ id: string; productId: string; size: string; color: string; quantity: number; plannedFabricQty?: string | null }>;
+  items: Array<{
+    id: string;
+    productId: string;
+    size: string;
+    color: string;
+    quantity: number;
+    plannedFabricQty?: string | null;
+    closureMaterialId?: string | null;
+    plannedClosureQty?: string | null;
+    packagingMaterialId?: string | null;
+    plannedPackagingQty?: string | null;
+  }>;
   payments: Array<{ id: string; amount: string; method: string; paidAt: string; notes?: string | null }>;
-  embroideryJobs: Array<{ id: string; status: string; sentAt?: string | null; expectedReturnDate?: string | null; receivedAt?: string | null; estimatedCost?: string | null; actualCost?: string | null; overdueDays: number }>;
+  embroideryJobs: Array<{
+    id: string;
+    providerId: string;
+    status: string;
+    sentAt?: string | null;
+    expectedReturnDate?: string | null;
+    receivedAt?: string | null;
+    estimatedCost?: string | null;
+    actualCost?: string | null;
+    notes?: string | null;
+    overdueDays: number;
+  }>;
   history: Array<{ id: string; fromStatus?: string | null; toStatus: string; changedAt: string; note?: string | null }>;
   financials: {
     agreedTotalPrice: number;
@@ -86,37 +112,17 @@ export type Bootstrap = {
 
 const tokenKey = "minierp.token";
 
-export function getToken() {
-  return localStorage.getItem(tokenKey);
-}
-
-export function setToken(token: string) {
-  localStorage.setItem(tokenKey, token);
-}
-
+export function getToken() { return localStorage.getItem(tokenKey); }
+export function setToken(token: string) { localStorage.setItem(tokenKey, token); }
 export function clearToken() {
   const token = localStorage.getItem(tokenKey);
-  if (token) {
-    void fetch("/api/auth/logout", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({}),
-      keepalive: true
-    }).catch(() => undefined);
-  }
+  if (token) void fetch("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({}), keepalive: true }).catch(() => undefined);
   localStorage.removeItem(tokenKey);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...options.headers
-    }
-  });
+  const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...options.headers } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(payload.error ?? "Error de API");
@@ -125,10 +131,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 async function login(email: string, password: string) {
-  const result = await request<{ token: string }>("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  });
+  const result = await request<{ token: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   setToken(result.token);
   const session = await request<{ mustChangePassword: boolean }>("/api/auth/session");
   if (session.mustChangePassword) window.location.replace("/change-password.html");
@@ -139,10 +142,7 @@ export const api = {
   login,
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) }),
   session: () => request<{ mustChangePassword: boolean }>("/api/auth/session"),
-  changePassword: (newPassword: string) => request<{ ok: true; reauthenticate: true }>("/api/auth/change-password", {
-    method: "POST",
-    body: JSON.stringify({ newPassword })
-  }),
+  changePassword: (newPassword: string) => request<{ ok: true; reauthenticate: true }>("/api/auth/change-password", { method: "POST", body: JSON.stringify({ newPassword }) }),
   bootstrap: () => request<Bootstrap>("/api/bootstrap"),
   createCustomer: (payload: Partial<Customer>) => request<Customer>("/api/customers", { method: "POST", body: JSON.stringify(payload) }),
   createProduct: (payload: Record<string, unknown>) => request<Product>("/api/products", { method: "POST", body: JSON.stringify(payload) }),
