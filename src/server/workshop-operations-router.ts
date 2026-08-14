@@ -1,5 +1,6 @@
 import type { AuthUser } from "./auth";
 import { workshopAgenda } from "./workshop-agenda";
+import { operationalDashboard } from "./workshop-dashboard";
 import { archiveEmbroideryJob, updateEmbroideryJob } from "./workshop-embroidery-jobs";
 import { archiveExpense, listExpenses, saveExpense } from "./workshop-expenses";
 import { listFinishedStock, saveFinishedStock } from "./workshop-finished-stock";
@@ -13,17 +14,16 @@ import { archiveManualStockEntry, editManualStockEntry, listManualStockEntries }
 const base = "/api/workshop/";
 const orderAction = /^\/api\/workshop\/orders\/([0-9a-f-]+)\/(assembly|ready-delivery)$/i;
 const embroideryJobAction = /^\/api\/workshop\/embroidery-jobs\/([0-9a-f-]+)$/i;
+const staticPaths = ["/api/workshop/dashboard","/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"];
 
 export function isWorkshopOperationsRequest(request: Request) {
   const path = new URL(request.url).pathname;
   if (!path.startsWith(base)) return false;
   if (orderAction.test(path) || embroideryJobAction.test(path)) return true;
-  return ["/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"].includes(path);
+  return staticPaths.includes(path);
 }
 
-function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } });
-}
+function json(payload: unknown, status = 200) { return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } }); }
 
 export async function handleWorkshopOperations(request: Request, user: AuthUser) {
   const path = new URL(request.url).pathname;
@@ -35,6 +35,7 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
     if (body?.action === "archive") return archiveEmbroideryJob(request,user,jobMatch[1]);
     if (body?.action === "update") return updateEmbroideryJob(request,user,jobMatch[1]);
   }
+  if (path === "/api/workshop/dashboard" && request.method === "GET") return operationalDashboard(user);
   if (path === "/api/workshop/agenda" && request.method === "GET") return workshopAgenda(user);
   if (path === "/api/workshop/money" && request.method === "GET") return moneySummary(request, user);
   if (path === "/api/workshop/stock-entries") {
