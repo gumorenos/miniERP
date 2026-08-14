@@ -1,5 +1,6 @@
 import React from "react";
 import { localDateInputValue } from "../domain/workshop";
+import { customerOrderMessage, whatsappUrl } from "../domain/whatsapp";
 import { api, type Bootstrap, type OrderDetail } from "./api";
 import { ArchiveButton } from "./archive-button";
 import { OrderEditForm } from "./order-edit-form";
@@ -19,13 +20,17 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 export function OrderDetailView({ order, data, onReload, onArchived }: { order: OrderDetail; data: Bootstrap; onReload: () => Promise<void>; onArchived: () => Promise<void> | void }) {
   const provider = data.providers[0];
   const sentJob = order.embroideryJobs.find((job) => job.status === "SENT");
+  const item = order.items[0];
   const terminal = order.status === "CANCELLED" || order.status === "CLOSED";
   const nextActions = [["MATERIAL_PENDING", "Material pendiente"], ["READY_TO_CUT", "Listo para corte"], ["ASSEMBLY", "Confección"], ["READY_FOR_DELIVERY", "Listo para entregar"], ["DELIVERED", "Entregar"], ["CLOSED", "Cerrar"]] as const;
+  const message = customerOrderMessage({ customerName: order.customer.name, orderNumber: order.orderNumber, status: order.status, balance: order.financials.balance });
+  const customerWhatsApp = order.customer.phone ? whatsappUrl(order.customer.phone, message) : null;
 
   return <div className="stack">
     <section><h2>{order.orderNumber}</h2><p className="muted">{order.customer.name} · {statusLabels[order.status] ?? order.status}</p>
-      <div className="actions"><ArchiveButton entityType="ORDER" id={order.id} onArchived={onArchived} /></div>
+      <div className="actions">{customerWhatsApp && <a className="secondary button-link" href={customerWhatsApp} target="_blank" rel="noreferrer">WhatsApp clienta</a>}<ArchiveButton entityType="ORDER" id={order.id} onArchived={onArchived} /></div>
       <div className="metrics"><Metric label="Precio" value={money(order.financials.agreedTotalPrice)} /><Metric label="Pagado" value={money(order.financials.totalPaid)} /><Metric label="Saldo" value={money(order.financials.balance)} /><Metric label="Margen" value={money(order.financials.margin)} /></div>
+      {item && <p className="muted">Talla {item.size} · color {item.color} · tela planificada {item.plannedFabricQty ?? "-"} m</p>}
       <div className="money-grid"><span>Costo estimado</span><strong>{money(order.financials.estimatedCost)}</strong><span>Costo real</span><strong>{money(order.financials.actualCost)}</strong><span>Costo margen</span><strong>{money(order.financials.costForMargin)}</strong></div>
     </section>
 
