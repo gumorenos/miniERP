@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { embroideryJobs, embroideryProviders, orderItems, orders } from "../db/schema";
+import { embroideryJobs, embroideryProviders, orderItems, orders, payments } from "../db/schema";
 import { canTransitionOrder } from "../domain/order";
 import { orderStatuses, type OrderStatus } from "../domain/types";
 import type { AuthUser } from "./auth";
@@ -15,8 +15,13 @@ function json(payload: unknown, status = 200) {
 }
 
 async function orderById(businessId: string, orderId: string) {
-  const [order] = await db.select({ id: orders.id, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, businessId))).limit(1);
+  const [order] = await db.select({ id: orders.id, status: orders.status, agreedTotalPrice: orders.agreedTotalPrice }).from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, businessId))).limit(1);
   return order ?? null;
+}
+
+async function paidTotal(businessId: string, orderId: string) {
+  const [row] = await db.select({ paid: sql<string>`coalesce(sum(${payments.amount}),0)` }).from(payments).where(and(eq(payments.orderId, orderId), eq(payments.businessId, businessId)));
+  return Number(row?.paid ?? 0);
 }
 
 async function orderForEmbroideryJob(businessId: string, jobId: string) {
@@ -42,7 +47,7 @@ function validateGenericTransition(from: OrderStatus, target: OrderStatus) {
 export async function guardOrderWorkflowMutation(request: Request, user: AuthUser): Promise<Response | null> {
   if (request.method !== "POST") return null;
   const path = new URL(request.url).pathname;
-  let order: { id: string; status: string } | null = null;
+  let order: { id: string; status: string; agreedTotalPrice: string } | null = null;
   let target: OrderStatus | null = null;
   let genericTransition = false;
 
@@ -92,6 +97,11 @@ export async function guardOrderWorkflowMutation(request: Request, user: AuthUse
   if (genericTransition) {
     const reason = validateGenericTransition(from, target);
     if (reason) return json({ error: reason }, 409);
+    if (target === "CLOSED") {
+      const paid = await paidTotal(user.businessId, order.id);
+      const total = Number(order.agreedTotalPrice);
+      if (paid + 0.005 < total) return json({ error: `No se puede cerrar el pedido con saldo pendiente de S/ ${(total - paid).toFixed(2)}` }, 409);
+    }
   } else if (target === "CUT" && !["READY_TO_CUT", "CUT"].includes(from)) {
     return json({ error: "El pedido debe estar listo para corte antes de cortar" }, 409);
   } else if (target === "AT_EMBROIDERER" && from !== "CUT") {
