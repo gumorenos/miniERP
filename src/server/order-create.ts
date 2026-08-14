@@ -32,8 +32,12 @@ function paymentDate(value?: string | null) {
 }
 
 async function weightedAverageCost(materialId: string) {
-  const [row] = await db.select({ totalQty: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} else 0 end), 0)`, totalCost: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} * coalesce(${stockMovements.unitCost}, 0) else 0 end), 0)` }).from(stockMovements).where(eq(stockMovements.materialId, materialId));
-  const qty = numberValue(row?.totalQty); return qty > 0 ? numberValue(row?.totalCost) / qty : 0;
+  const [row] = await db.select({
+    totalQty: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} else 0 end), 0)`,
+    totalCost: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} * coalesce(${stockMovements.unitCost}, 0) else 0 end), 0)`
+  }).from(stockMovements).where(eq(stockMovements.materialId, materialId));
+  const qty = numberValue(row?.totalQty);
+  return qty > 0 ? numberValue(row?.totalCost) / qty : 0;
 }
 
 async function nextOrderNumber(businessId: string) {
@@ -51,9 +55,24 @@ async function loadOrder(businessId: string, id: string) {
   const jobs = items.length ? await db.select().from(embroideryJobs).where(inArray(embroideryJobs.orderItemId, items.map((item) => item.id))) : [];
   const costs = items.map((item) => {
     const itemJobs = jobs.filter((job) => job.orderItemId === item.id);
-    return { estimatedMaterialCost:numberValue(item.estimatedMaterialCost), actualMaterialCost:item.actualMaterialCost==null?null:numberValue(item.actualMaterialCost), estimatedOwnLaborCost:numberValue(item.estimatedOwnLaborCost), actualOwnLaborCost:item.actualOwnLaborCost==null?null:numberValue(item.actualOwnLaborCost), estimatedPackagingCost:numberValue(item.estimatedPackagingCost), actualPackagingCost:item.actualPackagingCost==null?null:numberValue(item.actualPackagingCost), otherEstimatedDirectCost:numberValue(item.otherEstimatedDirectCost), otherActualDirectCost:item.otherActualDirectCost==null?null:numberValue(item.otherActualDirectCost), estimatedEmbroideryCost:itemJobs.reduce((sum,job)=>sum+numberValue(job.estimatedCost),0), actualEmbroideryCost:itemJobs.some((job)=>job.actualCost!=null)?itemJobs.reduce((sum,job)=>sum+numberValue(job.actualCost),0):null };
+    return {
+      estimatedMaterialCost: numberValue(item.estimatedMaterialCost), actualMaterialCost: item.actualMaterialCost == null ? null : numberValue(item.actualMaterialCost),
+      estimatedOwnLaborCost: numberValue(item.estimatedOwnLaborCost), actualOwnLaborCost: item.actualOwnLaborCost == null ? null : numberValue(item.actualOwnLaborCost),
+      estimatedPackagingCost: numberValue(item.estimatedPackagingCost), actualPackagingCost: item.actualPackagingCost == null ? null : numberValue(item.actualPackagingCost),
+      otherEstimatedDirectCost: numberValue(item.otherEstimatedDirectCost), otherActualDirectCost: item.otherActualDirectCost == null ? null : numberValue(item.otherActualDirectCost),
+      estimatedEmbroideryCost: itemJobs.reduce((sum, job) => sum + numberValue(job.estimatedCost), 0),
+      actualEmbroideryCost: itemJobs.some((job) => job.actualCost != null) ? itemJobs.reduce((sum, job) => sum + numberValue(job.actualCost), 0) : null
+    };
   });
-  return { ...order, customer, items, payments:paymentRows, history, embroideryJobs:jobs.map((job)=>({...job,overdueDays:embroideryOverdueDays(job.expectedReturnDate,job.receivedAt)})), financials:calculateOrderFinancials({agreedTotalPrice:numberValue(order.agreedTotalPrice),payments:paymentRows.map((row)=>numberValue(row.amount)),items:costs}) };
+  return {
+    ...order,
+    customer,
+    items,
+    payments: paymentRows,
+    history,
+    embroideryJobs: jobs.map((job) => ({ ...job, overdueDays: embroideryOverdueDays(job.expectedReturnDate, job.receivedAt) })),
+    financials: calculateOrderFinancials({ agreedTotalPrice: numberValue(order.agreedTotalPrice), payments: paymentRows.map((row) => numberValue(row.amount)), items: costs })
+  };
 }
 
 export async function handleOrderCreateWithAdvance(request: Request, user: AuthUser): Promise<Response> {
@@ -69,18 +88,49 @@ export async function handleOrderCreateWithAdvance(request: Request, user: AuthU
   if (!product) return json({ error: "Producto no encontrado" }, 404);
   const paidAt = body.advanceAmount > 0 ? paymentDate(body.advancePaidAt) : null;
   if (body.advanceAmount > 0 && !paidAt) return json({ error: "Fecha de adelanto inválida" }, 400);
+
   const plannedFabricQty = product.defaultFabricMaterialId ? await resolveFabricQty(product.id, body.size, product.defaultFabricQtyMeters) : null;
   if (product.defaultFabricMaterialId && plannedFabricQty == null) return json({ error: "Configura el consumo de tela del producto" }, 409);
   const fabricCost = product.defaultFabricMaterialId && plannedFabricQty != null ? (await weightedAverageCost(product.defaultFabricMaterialId)) * plannedFabricQty : 0;
   const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * numberValue(product.defaultClosureQty) : 0;
   const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * numberValue(product.defaultPackagingQty) : 0;
   const orderNumber = await nextOrderNumber(user.businessId);
+
   const id = await db.transaction(async (tx) => {
-    const [order] = await tx.insert(orders).values({ businessId:user.businessId,orderNumber,customerId:body.customerId,orderDate:limaBusinessDate(),promisedDeliveryDate:body.promisedDeliveryDate||null,fulfillmentType:"MADE_TO_ORDER",status:"ORDER_RECEIVED",agreedTotalPrice:String(body.agreedTotalPrice),notes:body.notes||null }).returning();
-    const [item] = await tx.insert(orderItems).values({ orderId:order.id,productId:product.id,size:body.size,color:body.color,quantity:body.quantity,agreedUnitPrice:String(body.agreedTotalPrice/body.quantity),fabricMaterialId:product.defaultFabricMaterialId,plannedFabricQty:plannedFabricQty==null?null:String(plannedFabricQty),estimatedMaterialCost:fabricCost+closureCost>0?String(roundMoney(fabricCost+closureCost)):null,estimatedOwnLaborCost:product.defaultOwnLaborCost,estimatedPackagingCost:packagingCost>0?String(roundMoney(packagingCost)):null,otherEstimatedDirectCost:null }).returning({id:orderItems.id});
-    await tx.execute(sql`update order_items set closure_material_id=${product.defaultClosureMaterialId}::uuid, planned_closure_qty=${product.defaultClosureQty}::numeric, packaging_material_id=${product.defaultPackagingMaterialId}::uuid, planned_packaging_qty=${product.defaultPackagingQty}::numeric where id=${item.id}::uuid`);
-    await tx.insert(orderStatusHistory).values({ orderId:order.id,toStatus:"ORDER_RECEIVED",note:"Pedido creado" });
-    if (body.advanceAmount > 0 && paidAt) await tx.insert(payments).values({ businessId:user.businessId,orderId:order.id,amount:String(body.advanceAmount),method:body.advanceMethod,paidAt,notes:body.advanceNotes||"Adelanto al crear pedido" });
+    const [order] = await tx.insert(orders).values({
+      businessId: user.businessId,
+      orderNumber,
+      customerId: body.customerId,
+      orderDate: limaBusinessDate(),
+      promisedDeliveryDate: body.promisedDeliveryDate || null,
+      fulfillmentType: "MADE_TO_ORDER",
+      status: "ORDER_RECEIVED",
+      agreedTotalPrice: String(body.agreedTotalPrice),
+      notes: body.notes || null
+    }).returning();
+
+    await tx.insert(orderItems).values({
+      orderId: order.id,
+      productId: product.id,
+      size: body.size,
+      color: body.color,
+      quantity: body.quantity,
+      agreedUnitPrice: String(body.agreedTotalPrice / body.quantity),
+      fabricMaterialId: product.defaultFabricMaterialId,
+      plannedFabricQty: plannedFabricQty == null ? null : String(plannedFabricQty),
+      closureMaterialId: product.defaultClosureMaterialId,
+      plannedClosureQty: product.defaultClosureQty,
+      packagingMaterialId: product.defaultPackagingMaterialId,
+      plannedPackagingQty: product.defaultPackagingQty,
+      estimatedMaterialCost: fabricCost + closureCost > 0 ? String(roundMoney(fabricCost + closureCost)) : null,
+      estimatedOwnLaborCost: product.defaultOwnLaborCost,
+      estimatedPackagingCost: packagingCost > 0 ? String(roundMoney(packagingCost)) : null,
+      otherEstimatedDirectCost: null
+    });
+    await tx.insert(orderStatusHistory).values({ orderId: order.id, toStatus: "ORDER_RECEIVED", note: "Pedido creado" });
+    if (body.advanceAmount > 0 && paidAt) {
+      await tx.insert(payments).values({ businessId: user.businessId, orderId: order.id, amount: String(body.advanceAmount), method: body.advanceMethod, paidAt, notes: body.advanceNotes || "Adelanto al crear pedido" });
+    }
     return order.id;
   });
   return json(await loadOrder(user.businessId, id), 201);
