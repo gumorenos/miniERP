@@ -56,19 +56,20 @@ docker compose --env-file .env.production -f compose.prod.yml up --build -d
 docker compose --env-file .env.production -f compose.prod.yml --profile ops run --rm bootstrap-user
 ```
 
-This same command can later rotate that user's password. Password rotation marks all active sessions revoked while preserving their rows for audit/history.
+`APP_USER_EMAIL` and `APP_USER_PASSWORD` are bootstrap/emergency inputs, not the permanent source of truth for the account. The account in PostgreSQL is authoritative and the user can change name, email and password inside the application.
 
-7. Store the application password in an appropriate password manager and remove/blank it from the server env file when it is not needed for a rotation operation.
-8. Verify locally on the VPS:
+7. Store the real password in a password manager. After the initial bootstrap, blank **both** `APP_USER_EMAIL` and `APP_USER_PASSWORD` in the real server env and keep its restrictive permissions. Do not try to keep `APP_USER_EMAIL` synchronized with later self-service email changes.
+8. For a future emergency credential reset, set the current account email/password explicitly for that one-shot operation, run `bootstrap-user`, verify access, and blank the bootstrap fields again. Routine account changes must use the application instead.
+9. Verify locally on the VPS:
 
 ```bash
 curl -fsS http://127.0.0.1:${APP_HOST_PORT}/api/health
 ```
 
-9. Verify login locally, then confirm the Cloudflare Tunnel route.
-10. Only after local health/login passes, attach or update the hostname.
-11. Run smoke checks against the hostname.
-12. When Cloudflare Access is enabled later, add an Access-specific smoke check without removing the application-login smoke.
+10. Verify login locally, then confirm the Cloudflare Tunnel route.
+11. Only after local health/login passes, attach or update the hostname.
+12. Run smoke checks against the hostname.
+13. When Cloudflare Access is enabled later, add an Access-specific smoke check without removing the application-login smoke.
 
 ### Production-like E2E QA
 
