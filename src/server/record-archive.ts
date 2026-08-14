@@ -1,10 +1,10 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { customers, embroideryJobs, materials, orderItems, orders, payments, products, stockMovements } from "../db/schema";
+import { customers, embroideryJobs, materials, orderItems, orders, payments, products, stockMovements, suppliers } from "../db/schema";
 import type { AuthUser } from "./auth";
 
-export const archiveEntityTypes = ["CUSTOMER", "PRODUCT", "MATERIAL", "ORDER", "PAYMENT"] as const;
+export const archiveEntityTypes = ["CUSTOMER", "PRODUCT", "MATERIAL", "ORDER", "PAYMENT", "SUPPLIER"] as const;
 export type ArchiveEntityType = (typeof archiveEntityTypes)[number];
 const archiveSchema = z.object({ entityType: z.enum(archiveEntityTypes), id: z.string().uuid() });
 
@@ -90,6 +90,16 @@ async function archiveRecordUnsafe(request: Request, user: AuthUser) {
     await db.transaction(async(tx)=>{
       await tx.execute(sql`insert into deleted_records (business_id,entity_type,entity_id,snapshot) values (${user.businessId}::uuid,${entityType},${id}::uuid,${JSON.stringify(row)}::jsonb) on conflict (business_id,entity_type,entity_id) do nothing`);
       await tx.update(payments).set({amount:"0"}).where(eq(payments.id,id));
+    });
+    return json({ok:true});
+  }
+
+  if (entityType === "SUPPLIER") {
+    const [row] = await db.select().from(suppliers).where(and(eq(suppliers.id,id),eq(suppliers.businessId,user.businessId))).limit(1);
+    if (!row) return json({ error:"Proveedor no encontrado" },404);
+    await db.transaction(async(tx)=>{
+      await tx.execute(sql`insert into deleted_records (business_id,entity_type,entity_id,snapshot) values (${user.businessId}::uuid,${entityType},${id}::uuid,${JSON.stringify(row)}::jsonb) on conflict (business_id,entity_type,entity_id) do nothing`);
+      await tx.update(suppliers).set({active:false,updatedAt:new Date()}).where(eq(suppliers.id,row.id));
     });
     return json({ok:true});
   }

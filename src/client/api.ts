@@ -42,6 +42,13 @@ export type Provider = {
   notes?: string | null;
 };
 
+export type Supplier = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  notes?: string | null;
+};
+
 export type OrderSummary = {
   id: string;
   orderNumber: string;
@@ -107,6 +114,7 @@ export type Bootstrap = {
   products: Product[];
   materials: Material[];
   providers: Provider[];
+  suppliers: Supplier[];
   orders: OrderSummary[];
 };
 

@@ -13,12 +13,14 @@ export function filterBootstrap(data: Bootstrap, records: ArchiveRecord[]): Boot
   const materialIds = ids(records, "MATERIAL");
   const orderIds = ids(records, "ORDER");
   const providerIds = ids(records, "PROVIDER");
+  const supplierIds = ids(records, "SUPPLIER");
   return {
     ...data,
     customers: data.customers.filter((row) => !customerIds.has(row.id)),
     products: data.products.filter((row) => !productIds.has(row.id)),
     materials: data.materials.filter((row) => !materialIds.has(row.id)),
     providers: data.providers.filter((row) => !providerIds.has(row.id)),
+    suppliers: data.suppliers.filter((row) => !supplierIds.has(row.id)),
     orders: data.orders.filter((row) => !orderIds.has(row.id)),
     dashboard: {
       ...data.dashboard,

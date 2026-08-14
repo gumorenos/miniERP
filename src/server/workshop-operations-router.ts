@@ -11,12 +11,13 @@ import { moneySummary } from "./workshop-money";
 import { archiveProvider, listProviders, saveProvider } from "./workshop-providers";
 import { listSizeConsumption, saveSizeConsumption } from "./workshop-size-consumption";
 import { archiveManualStockEntry, createManualStockAdjustment, editManualStockEntry, listManualStockEntries } from "./workshop-stock-entries";
+import { archiveSupplier, listSuppliers, saveSupplier } from "./workshop-suppliers";
 
 const base = "/api/workshop/";
 const orderAction = /^\/api\/workshop\/orders\/([0-9a-f-]+)\/(assembly|ready-delivery)$/i;
 const embroideryJobAction = /^\/api\/workshop\/embroidery-jobs\/([0-9a-f-]+)$/i;
 const customerHistoryAction = /^\/api\/workshop\/customers\/([0-9a-f-]+)\/history$/i;
-const staticPaths = ["/api/workshop/dashboard","/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"];
+const staticPaths = ["/api/workshop/dashboard","/api/workshop/agenda","/api/workshop/money","/api/workshop/purchases","/api/workshop/expenses","/api/workshop/providers","/api/workshop/suppliers","/api/workshop/size-consumption","/api/workshop/finished-stock","/api/workshop/stock-entries"];
 
 export function isWorkshopOperationsRequest(request: Request) {
   const path = new URL(request.url).pathname;
@@ -54,6 +55,7 @@ export async function handleWorkshopOperations(request: Request, user: AuthUser)
   if (path === "/api/workshop/finished-stock") { if (request.method === "GET") return listFinishedStock(user); if (request.method === "POST") return saveFinishedStock(request,user); }
   if (path === "/api/workshop/size-consumption") { if (request.method === "GET") return listSizeConsumption(user); if (request.method === "POST") return saveSizeConsumption(request, user); }
   if (path === "/api/workshop/providers") { if (request.method === "GET") return listProviders(user); if (request.method === "POST") { const body = await request.clone().json().catch(() => null) as { action?: string } | null; if (body?.action === "archive") return archiveProvider(request, user); return saveProvider(request, user); } }
+  if (path === "/api/workshop/suppliers") { if (request.method === "GET") return listSuppliers(user); if (request.method === "POST") { const body = await request.clone().json().catch(() => null) as { action?: string } | null; if (body?.action === "archive") return archiveSupplier(request, user); return saveSupplier(request, user); } }
   if (path === "/api/workshop/purchases") { if (request.method === "GET") return listPurchases(user); if (request.method === "POST") { const body = await request.clone().json().catch(() => null) as { action?: string } | null; if (body?.action === "archive") return archivePurchase(request, user); if (body?.action === "update") return updatePurchase(request, user); return createPurchase(request, user); } }
   if (path === "/api/workshop/expenses") { if (request.method === "GET") return listExpenses(user); if (request.method === "POST") { const body = await request.clone().json().catch(() => null) as { action?: string } | null; if (body?.action === "archive") return archiveExpense(request, user); return saveExpense(request, user); } }
   return json({ error: "No encontrado" }, 404);

@@ -24,7 +24,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (contentType.includes("application/json") && raw ? JSON.parse(raw) as T : {}) as T;
 }
 
-export type ArchiveEntityType = "CUSTOMER" | "PRODUCT" | "MATERIAL" | "ORDER" | "PAYMENT" | "PROVIDER" | "EMBROIDERY_JOB";
+export type ArchiveEntityType = "CUSTOMER" | "PRODUCT" | "MATERIAL" | "ORDER" | "PAYMENT" | "PROVIDER" | "SUPPLIER" | "EMBROIDERY_JOB";
 
 export const workshopApi = {
   updateCustomer: (payload: Record<string, unknown>) => request<Customer>("/api/customers", {

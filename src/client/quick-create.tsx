@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { api, type Customer, type Material, type Product } from "./api";
+import { api, type Customer, type Material, type Product, type Supplier } from "./api";
 import { operationsApi, type ProviderRow } from "./operations-api";
 
 type ModalProps = { title: string; description?: string; onClose: () => void; children: React.ReactNode };
@@ -55,6 +55,16 @@ export function QuickProviderForm({ onCreated, onCancel }: { onCreated: (provide
   return <form className="form" onSubmit={async (event) => { event.preventDefault(); setError(""); if (name.trim().length < 2) return setError("Ingresa el nombre del bordador."); setSaving(true); try { await onCreated(await operationsApi.saveProvider({ action: "create", name: name.trim(), phone: phone.trim() || null })); } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear el bordador."); } finally { setSaving(false); } }}>
     <label>Nombre *<input autoFocus value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label>
     <label>Teléfono / WhatsApp<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+    {error && <p className="error" role="alert">{error}</p>}
+    <div className="actions"><button disabled={saving || name.trim().length < 2}>{saving ? "Guardando..." : "Crear y seleccionar"}</button><button className="ghost" type="button" onClick={onCancel}>Cancelar</button></div>
+  </form>;
+}
+
+export function QuickSupplierForm({ onCreated, onCancel }: { onCreated: (supplier: Supplier) => Promise<void> | void; onCancel: () => void }) {
+  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  return <form className="form" onSubmit={async (event) => { event.preventDefault(); setError(""); if (name.trim().length < 2) return setError("Ingresa el nombre del proveedor."); setSaving(true); try { await onCreated(await operationsApi.saveSupplier({ action: "create", name: name.trim(), phone: phone.trim() || null })); } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear el proveedor."); } finally { setSaving(false); } }}>
+    <label>Nombre *<input autoFocus value={name} onChange={(event) => setName(event.target.value)} required minLength={2} placeholder="Ej. Telares del Sur" /></label>
+    <label>Teléfono / WhatsApp <span className="label-optional">opcional</span><input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
     {error && <p className="error" role="alert">{error}</p>}
     <div className="actions"><button disabled={saving || name.trim().length < 2}>{saving ? "Guardando..." : "Crear y seleccionar"}</button><button className="ghost" type="button" onClick={onCancel}>Cancelar</button></div>
   </form>;

@@ -16,9 +16,10 @@ import { SizeConsumptionPanel } from "./size-consumption-panel";
 import { FinanceManager } from "./finance-manager";
 import { MoneyView } from "./money-view";
 import { ProvidersManager } from "./providers-manager";
+import { SuppliersManager } from "./suppliers-manager";
 
 type WorkshopTab = "products" | "materials" | "finished";
-type ContactsTab = "all" | "customers" | "providers" | "other";
+type ContactsTab = "all" | "customers" | "providers" | "suppliers";
 type MoneyTab = "summary" | "purchases" | "expenses";
 
 export function WorkshopApp() {
@@ -83,7 +84,7 @@ function WorkshopHub({ tab, setTab, data, onChanged }: { tab: WorkshopTab; setTa
 }
 
 function ContactsHub({ tab, setTab, data, onChanged, onOpenOrder }: { tab: ContactsTab; setTab: (tab: ContactsTab) => void; data: Bootstrap; onChanged: () => Promise<void>; onOpenOrder: (id: string) => Promise<void> }) {
-  return <div className="stack"><ModuleIntro eyebrow="Contactos" title="Una ficha para cada relación del taller" description="Clientes, bordadores y proveedores quedan juntos para que no tengas que recordar dónde vive cada dato." /><Subnav items={[["all", "Todos"], ["customers", "Clientes"], ["providers", "Bordadores"], ["other", "Otros"]] as const} value={tab} onChange={setTab} />{tab === "all" && <section><div className="contact-cards"><button type="button" className="contact-card" onClick={() => setTab("customers")}><span className="contact-icon magenta">♧</span><span><strong>Clientes</strong><small>{data.customers.length} registrados</small></span><b>Ver →</b></button><button type="button" className="contact-card" onClick={() => setTab("providers")}><span className="contact-icon purple">✤</span><span><strong>Bordadores</strong><small>{data.providers.length} registrados</small></span><b>Ver →</b></button><div className="contact-card muted-card"><span className="contact-icon teal">＋</span><span><strong>Proveedores y otros</strong><small>Preparado para la siguiente etapa</small></span></div></div></section>}{tab === "customers" && <CustomerManager data={data} onChanged={onChanged} onOpenOrder={onOpenOrder} />}{tab === "providers" && <ProvidersManager onChanged={onChanged} />}{tab === "other" && <section className="empty-state"><span className="empty-mark">◌</span><h2>Otros contactos</h2><p className="muted">La estructura ya está preparada para proveedores y roles adicionales sin obligarte a crear otra sección principal.</p></section>}</div>;
+  return <div className="stack"><ModuleIntro eyebrow="Contactos" title="Una ficha para cada relación del taller" description="Clientes, bordadores y proveedores quedan juntos para que no tengas que recordar dónde vive cada dato." /><Subnav items={[["all", "Todos"], ["customers", "Clientes"], ["providers", "Bordadores"], ["suppliers", "Proveedores"]] as const} value={tab} onChange={setTab} />{tab === "all" && <section><div className="contact-cards"><button type="button" className="contact-card" onClick={() => setTab("customers")}><span className="contact-icon magenta">♧</span><span><strong>Clientes</strong><small>{data.customers.length} registrados</small></span><b>Ver →</b></button><button type="button" className="contact-card" onClick={() => setTab("providers")}><span className="contact-icon purple">✤</span><span><strong>Bordadores</strong><small>{data.providers.length} registrados</small></span><b>Ver →</b></button><button type="button" className="contact-card" onClick={() => setTab("suppliers")}><span className="contact-icon teal">＋</span><span><strong>Proveedores</strong><small>{data.suppliers.length} registrados</small></span><b>Ver →</b></button></div></section>}{tab === "customers" && <CustomerManager data={data} onChanged={onChanged} onOpenOrder={onOpenOrder} />}{tab === "providers" && <ProvidersManager onChanged={onChanged} />}{tab === "suppliers" && <SuppliersManager onChanged={onChanged} />}</div>;
 }
 
 function MoneyHub({ tab, setTab, data, onChanged }: { tab: MoneyTab; setTab: (tab: MoneyTab) => void; data: Bootstrap; onChanged: () => Promise<void> }) {

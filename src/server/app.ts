@@ -17,6 +17,7 @@ import {
   payments,
   productSizePrices,
   products,
+  suppliers,
   stockMovements,
   users
 } from "../db/schema";
@@ -140,15 +141,16 @@ function publicApp() {
   app.get("/api/bootstrap", async (c) => {
     const user = c.get("user");
     const [business] = await db.select().from(businesses).where(eq(businesses.id, user.businessId));
-    const [dashboard, customerList, productList, materialList, providerList, orderList] = await Promise.all([
+    const [dashboard, customerList, productList, materialList, providerList, supplierList, orderList] = await Promise.all([
       loadDashboard(user.businessId),
       db.select().from(customers).where(eq(customers.businessId, user.businessId)).orderBy(asc(customers.name)),
       loadProducts(user.businessId),
       loadMaterials(user.businessId),
       db.select().from(embroideryProviders).where(eq(embroideryProviders.businessId, user.businessId)).orderBy(asc(embroideryProviders.name)),
+      db.select().from(suppliers).where(eq(suppliers.businessId, user.businessId)).orderBy(asc(suppliers.name)),
       loadOrders(user.businessId)
     ]);
-    return c.json({ business, dashboard, customers: customerList, products: productList, materials: materialList, providers: providerList, orders: orderList, demo: process.env.NODE_ENV !== "production" });
+    return c.json({ business, dashboard, customers: customerList, products: productList, materials: materialList, providers: providerList, suppliers: supplierList, orders: orderList, demo: process.env.NODE_ENV !== "production" });
   });
 
   app.get("/api/customers", async (c) => c.json(await db.select().from(customers).where(eq(customers.businessId, c.get("user").businessId)).orderBy(asc(customers.name))));

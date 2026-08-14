@@ -132,10 +132,21 @@ export const orderStatusHistory = pgTable("order_status_history", {
   note: text("note")
 });
 
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  active: boolean("active").default(true).notNull(),
+  notes: text("notes"),
+  ...timestamps
+});
+
 export const purchases = pgTable("purchases", {
   id: uuid("id").defaultRandom().primaryKey(),
   businessId: uuid("business_id").notNull().references(() => businesses.id),
   purchaseDate: date("purchase_date").notNull(),
+  supplierId: uuid("supplier_id").references(() => suppliers.id),
   supplierName: text("supplier_name"),
   totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
   paymentMethod: text("payment_method"),
