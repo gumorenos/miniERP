@@ -1,0 +1,23 @@
+.global-error {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  max-width: 1090px;
+  margin: 8px auto;
+  padding: 10px 12px;
+  border: 1px solid #e2a8ae;
+  border-radius: 12px;
+  background: #fff0f1;
+  color: #8f2230;
+  box-shadow: 0 8px 28px rgba(75, 37, 42, .12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 720;
+}
+.global-error button { flex: 0 0 auto; }
+@media (max-width: 520px) {
+  .global-error { margin: 8px 14px; align-items: flex-start; flex-direction: column; }
+  .global-error button { width: 100%; }
+}
