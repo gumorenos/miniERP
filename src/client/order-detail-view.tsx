@@ -1,8 +1,8 @@
 import React from "react";
-import { localDateInputValue } from "../domain/workshop";
 import { customerOrderMessage, whatsappUrl } from "../domain/whatsapp";
 import { api, type Bootstrap, type OrderDetail } from "./api";
 import { ArchiveButton } from "./archive-button";
+import { EmbroideryWorkflow } from "./embroidery-workflow";
 import { OrderEditForm } from "./order-edit-form";
 import { PaymentsEditor } from "./payments-editor";
 
@@ -18,8 +18,6 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function OrderDetailView({ order, data, onReload, onArchived }: { order: OrderDetail; data: Bootstrap; onReload: () => Promise<void>; onArchived: () => Promise<void> | void }) {
-  const provider = data.providers[0];
-  const sentJob = order.embroideryJobs.find((job) => job.status === "SENT");
   const item = order.items[0];
   const terminal = order.status === "CANCELLED" || order.status === "CLOSED";
   const nextActions = [["MATERIAL_PENDING", "Material pendiente"], ["READY_TO_CUT", "Listo para corte"], ["ASSEMBLY", "Confección"], ["READY_FOR_DELIVERY", "Listo para entregar"], ["DELIVERED", "Entregar"], ["CLOSED", "Cerrar"]] as const;
@@ -38,14 +36,13 @@ export function OrderDetailView({ order, data, onReload, onArchived }: { order: 
 
     <section><h2>Flujo</h2>{terminal ? <p className="muted">Este pedido está {order.status === "CANCELLED" ? "cancelado" : "cerrado"}. Puedes corregir sus datos o borrar pagos, pero no avanzar el flujo.</p> : <div className="actions">
       <button onClick={async () => { await api.cut(order.id); await onReload(); }}>Cortar y descontar tela</button>
-      {provider && <button onClick={async () => { const expected = new Date(); expected.setDate(expected.getDate() + 14); await api.sendEmbroidery(order.id, { providerId: provider.id, expectedReturnDate: localDateInputValue(expected), estimatedCost: 80 }); await onReload(); }}>Enviar bordado</button>}
-      {sentJob && <button onClick={async () => { await api.receiveEmbroidery(order.id, sentJob.id, 80); await onReload(); }}>Recibir bordado</button>}
       {nextActions.map(([status, label]) => <button className="secondary" key={status} onClick={async () => { await api.transition(order.id, status); await onReload(); }}>{label}</button>)}
       <button className="ghost danger" onClick={async () => { if (!window.confirm("¿Cancelar este pedido?")) return; await api.transition(order.id, "CANCELLED"); await onReload(); }}>Cancelar pedido</button>
     </div>}</section>
 
+    {!terminal && <EmbroideryWorkflow order={order} data={data} onReload={onReload} />}
     <PaymentsEditor order={order} onReload={onReload} />
 
-    <section><h2>Bordado</h2>{order.embroideryJobs.length ? order.embroideryJobs.map((job) => <p className={job.overdueDays > 0 ? "warning" : "muted"} key={job.id}>{job.status} · retorno {job.expectedReturnDate ?? "-"} · atraso {job.overdueDays} días</p>) : <p className="muted">Sin bordado registrado.</p>}</section>
+    <section><h2>Historial de bordado</h2>{order.embroideryJobs.length ? order.embroideryJobs.map((job) => <p className={job.overdueDays > 0 ? "warning" : "muted"} key={job.id}>{job.status} · retorno {job.expectedReturnDate ?? "-"} · atraso {job.overdueDays} días</p>) : <p className="muted">Sin bordado registrado.</p>}</section>
   </div>;
 }
