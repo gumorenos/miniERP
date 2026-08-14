@@ -7,6 +7,7 @@ import { DashboardView, OrdersView } from "./workshop-overview";
 import { CustomerManager } from "./customer-manager";
 import { ProductsManager } from "./products-manager";
 import { InventoryManager } from "./inventory-manager";
+import { FinishedStockManager } from "./finished-stock-manager";
 import { NewOrderForm } from "./new-order-form";
 import { OrderDetailView } from "./order-detail-view";
 import { SizeConsumptionPanel } from "./size-consumption-panel";
@@ -58,7 +59,7 @@ export function WorkshopApp() {
     {screen === "orderDetail" && selectedOrder && <OrderDetailView order={selectedOrder} data={data} onReload={reloadSelectedOrder} onArchived={async () => { setSelectedOrder(null); setScreen("orders"); await reload(); }} />}
     {screen === "customers" && <CustomerManager data={data} onChanged={reload} onOpenOrder={openOrder} />}
     {screen === "products" && <div className="stack"><ProductsManager data={data} onChanged={reload} /><SizeConsumptionPanel data={data} /></div>}
-    {screen === "inventory" && <InventoryManager data={data} onChanged={reload} />}
+    {screen === "inventory" && <div className="stack"><InventoryManager data={data} onChanged={reload} /><FinishedStockManager data={data} /></div>}
     {screen === "providers" && <ProvidersManager onChanged={reload} />}
     {screen === "finance" && <FinanceManager data={data} onChanged={reload} />}
     {screen === "money" && <MoneyView />}
