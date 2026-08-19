@@ -32,6 +32,10 @@ Current exposure path:
 
 The current pilot relies on application authentication plus login rate limiting. Do not open the application or PostgreSQL port directly in the VPS firewall.
 
+### Telegram capture
+
+Telegram será una integración directa de miniERP mediante la API oficial del bot. El token vivirá únicamente en el entorno del servidor; el adaptador validará webhook, chat/usuario autorizado e idempotencia antes de crear borradores. OpenClaw no participa en el runtime funcional: queda limitado a testing, QA y despliegue. Activar Telegram solo después de QA aislado.
+
 ### Cloudflare Access — PENDING
 
 Cloudflare Access is intentionally **not enabled yet** for the current pilot, but it remains a pending defense-in-depth item and must not be removed from the roadmap. Before the pilot is widened to more users or treated as a longer-lived external service, evaluate and enable Cloudflare Access in front of the hostname unless there is a documented reason not to.

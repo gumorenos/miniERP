@@ -25,7 +25,9 @@ export function limaBusinessDateTimestamp(date = new Date()) { return new Date(`
 
 export function suggestedDeliveryDate(leadTimeDays: number, baseDate = new Date()) {
   const safeDays = Number.isFinite(leadTimeDays) ? Math.max(0, Math.trunc(leadTimeDays)) : 0;
-  const date = new Date(baseDate); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() + safeDays); return localDateInputValue(date);
+  const date = new Date(`${limaBusinessDate(baseDate)}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + safeDays);
+  return date.toISOString().slice(0, 10);
 }
 
 export function calculateCustomerMetrics(orders: CustomerOrderMetricInput[]) {

@@ -22,9 +22,14 @@ import {
   users
 } from "../db/schema";
 import { assertKnownOrderStatus, assertOrderTransition, calculateOrderFinancials, embroideryOverdueDays } from "../domain/order";
+import { roundMoney, toNumber } from "../domain/money";
 import { orderStatuses, paymentMethods, sizes, type OrderStatus } from "../domain/types";
 import { seedDevelopment } from "../db/seed";
 import { authenticateToken, createSession, revokeSession, verifyPassword } from "./auth";
+import { confirmCaptureDraft, createCaptureDraft, listCaptureDrafts, rejectCaptureDraft } from "./capture";
+import { nextOrderNumber } from "./order-number";
+import { weightedAverageCost } from "./stock-cost";
+import { AppError } from "./errors";
 
 type AppContext = {
   Variables: {
@@ -34,9 +39,6 @@ type AppContext = {
 };
 
 const isoDate = () => new Date().toISOString().slice(0, 10);
-const asNumber = (value: unknown) => (value == null ? 0 : Number(value));
-const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1)
@@ -153,6 +155,11 @@ function publicApp() {
     return c.json({ business, dashboard, customers: customerList, products: productList, materials: materialList, providers: providerList, suppliers: supplierList, orders: orderList, demo: process.env.NODE_ENV !== "production" });
   });
 
+  app.post("/api/capture/drafts", async (c) => createCaptureDraft(c.req.raw, c.get("user")));
+  app.get("/api/capture/drafts", async (c) => listCaptureDrafts(c.get("user")));
+  app.post("/api/capture/drafts/:id/confirm", async (c) => confirmCaptureDraft(c.req.raw, c.get("user"), c.req.param("id")));
+  app.post("/api/capture/drafts/:id/reject", async (c) => rejectCaptureDraft(c.get("user"), c.req.param("id")));
+
   app.get("/api/customers", async (c) => c.json(await db.select().from(customers).where(eq(customers.businessId, c.get("user").businessId)).orderBy(asc(customers.name))));
 
   app.post("/api/customers", async (c) => {
@@ -173,12 +180,12 @@ function publicApp() {
     if (!product) return c.json({ error: "Producto no encontrado" }, 404);
     const priceRow = await db.query.productSizePrices.findFirst({ where: and(eq(productSizePrices.productId, product.id), eq(productSizePrices.size, body.size)) });
     const agreedUnit = body.agreedTotalPrice / body.quantity;
-    const orderNumber = await nextOrderNumber(user.businessId);
-    const fabricCost = product.defaultFabricMaterialId ? (await weightedAverageCost(product.defaultFabricMaterialId)) * asNumber(product.defaultFabricQtyMeters) : 0;
-    const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * asNumber(product.defaultClosureQty) : 0;
-    const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * asNumber(product.defaultPackagingQty) : 0;
+    const fabricCost = product.defaultFabricMaterialId ? (await weightedAverageCost(product.defaultFabricMaterialId)) * toNumber(product.defaultFabricQtyMeters) : 0;
+    const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * toNumber(product.defaultClosureQty) : 0;
+    const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * toNumber(product.defaultPackagingQty) : 0;
 
     const result = await db.transaction(async (tx) => {
+      const orderNumber = await nextOrderNumber(tx, user.businessId);
       const [order] = await tx
         .insert(orders)
         .values({
@@ -204,9 +211,9 @@ function publicApp() {
           agreedUnitPrice: String(agreedUnit),
           fabricMaterialId: product.defaultFabricMaterialId,
           plannedFabricQty: product.defaultFabricQtyMeters,
-          estimatedMaterialCost: fabricCost + closureCost > 0 ? String(money(fabricCost + closureCost)) : null,
+          estimatedMaterialCost: fabricCost + closureCost > 0 ? String(roundMoney(fabricCost + closureCost)) : null,
           estimatedOwnLaborCost: product.defaultOwnLaborCost,
-          estimatedPackagingCost: packagingCost > 0 ? String(money(packagingCost)) : null,
+          estimatedPackagingCost: packagingCost > 0 ? String(roundMoney(packagingCost)) : null,
           otherEstimatedDirectCost: null
         })
         .returning();
@@ -254,7 +261,7 @@ function publicApp() {
     const [item] = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
     if (!item || !item.fabricMaterialId) return c.json({ error: "El pedido no tiene tela configurada" }, 422);
     const fabricMaterialId = item.fabricMaterialId;
-    const qty = body.actualFabricQty ?? asNumber(item.plannedFabricQty);
+    const qty = body.actualFabricQty ?? toNumber(item.plannedFabricQty);
     const existing = await db.query.stockMovements.findFirst({ where: and(eq(stockMovements.orderItemId, item.id), eq(stockMovements.type, "ORDER_CONSUMPTION")) });
     if (!existing) {
       await db.transaction(async (tx) => {
@@ -321,28 +328,11 @@ async function readIndexHtml() {
   return readFile(join(process.cwd(), "dist/client/index.html"), "utf8").catch(() => "<div id=\"root\"></div><script type=\"module\" src=\"/src/client/main.tsx\"></script>");
 }
 
-async function nextOrderNumber(businessId: string) {
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(orders).where(eq(orders.businessId, businessId));
-  return `P-${String(count + 1).padStart(5, "0")}`;
-}
-
 async function requireOrder(businessId: string, id: string) {
   const [order] = await db.select().from(orders).where(and(eq(orders.id, id), eq(orders.businessId, businessId))).limit(1);
-  if (!order) throw new Error("Pedido no encontrado");
+  if (!order) throw new AppError("Pedido no encontrado", 404, "ORDER_NOT_FOUND");
   assertKnownOrderStatus(order.status);
   return order;
-}
-
-async function weightedAverageCost(materialId: string) {
-  const [row] = await db
-    .select({
-      totalQty: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} else 0 end), 0)`,
-      totalCost: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} * coalesce(${stockMovements.unitCost}, 0) else 0 end), 0)`
-    })
-    .from(stockMovements)
-    .where(eq(stockMovements.materialId, materialId));
-  const qty = asNumber(row?.totalQty);
-  return qty > 0 ? asNumber(row?.totalCost) / qty : 0;
 }
 
 async function transitionOrder(orderId: string, from: OrderStatus, to: OrderStatus, note?: string | null) {
@@ -421,21 +411,21 @@ async function loadOrder(businessId: string, id: string) {
   const itemCosts = itemRows.map((item) => {
     const jobs = jobRows.filter((job) => job.orderItemId === item.id);
     return {
-      estimatedMaterialCost: asNumber(item.estimatedMaterialCost),
-      actualMaterialCost: item.actualMaterialCost == null ? null : asNumber(item.actualMaterialCost),
-      estimatedOwnLaborCost: asNumber(item.estimatedOwnLaborCost),
-      actualOwnLaborCost: item.actualOwnLaborCost == null ? null : asNumber(item.actualOwnLaborCost),
-      estimatedPackagingCost: asNumber(item.estimatedPackagingCost),
-      actualPackagingCost: item.actualPackagingCost == null ? null : asNumber(item.actualPackagingCost),
-      otherEstimatedDirectCost: asNumber(item.otherEstimatedDirectCost),
-      otherActualDirectCost: item.otherActualDirectCost == null ? null : asNumber(item.otherActualDirectCost),
-      estimatedEmbroideryCost: jobs.reduce((sum, job) => sum + asNumber(job.estimatedCost), 0),
-      actualEmbroideryCost: jobs.some((job) => job.actualCost != null) ? jobs.reduce((sum, job) => sum + asNumber(job.actualCost), 0) : null
+      estimatedMaterialCost: toNumber(item.estimatedMaterialCost),
+      actualMaterialCost: item.actualMaterialCost == null ? null : toNumber(item.actualMaterialCost),
+      estimatedOwnLaborCost: toNumber(item.estimatedOwnLaborCost),
+      actualOwnLaborCost: item.actualOwnLaborCost == null ? null : toNumber(item.actualOwnLaborCost),
+      estimatedPackagingCost: toNumber(item.estimatedPackagingCost),
+      actualPackagingCost: item.actualPackagingCost == null ? null : toNumber(item.actualPackagingCost),
+      otherEstimatedDirectCost: toNumber(item.otherEstimatedDirectCost),
+      otherActualDirectCost: item.otherActualDirectCost == null ? null : toNumber(item.otherActualDirectCost),
+      estimatedEmbroideryCost: jobs.reduce((sum, job) => sum + toNumber(job.estimatedCost), 0),
+      actualEmbroideryCost: jobs.some((job) => job.actualCost != null) ? jobs.reduce((sum, job) => sum + toNumber(job.actualCost), 0) : null
     };
   });
   const financials = calculateOrderFinancials({
-    agreedTotalPrice: asNumber(order.agreedTotalPrice),
-    payments: paymentRows.map((payment) => asNumber(payment.amount)),
+    agreedTotalPrice: toNumber(order.agreedTotalPrice),
+    payments: paymentRows.map((payment) => toNumber(payment.amount)),
     items: itemCosts
   });
   return {
@@ -462,7 +452,7 @@ async function loadDashboard(businessId: string) {
   const totals = fullOrders.reduce(
     (acc, order) => {
       if (!order) return acc;
-      acc.sales += asNumber(order.agreedTotalPrice);
+      acc.sales += toNumber(order.agreedTotalPrice);
       acc.collected += order.financials.totalPaid;
       acc.receivable += Math.max(0, order.financials.balance);
       acc.margin += order.financials.margin;
@@ -478,10 +468,10 @@ async function loadDashboard(businessId: string) {
     lateEmbroideryJobs: jobs.map((job) => ({ ...job, overdueDays: embroideryOverdueDays(job.expectedReturnDate, job.receivedAt) })).filter((job) => job.overdueDays > 0),
     readyForDelivery: activeOrders.filter((order) => order?.status === "READY_FOR_DELIVERY").length,
     money: {
-      sales: money(totals.sales),
-      collected: money(totals.collected),
-      receivable: money(totals.receivable),
-      margin: money(totals.margin)
+      sales: roundMoney(totals.sales),
+      collected: roundMoney(totals.collected),
+      receivable: roundMoney(totals.receivable),
+      margin: roundMoney(totals.margin)
     }
   };
 }

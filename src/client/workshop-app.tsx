@@ -17,6 +17,7 @@ import { FinanceManager } from "./finance-manager";
 import { MoneyView } from "./money-view";
 import { ProvidersManager } from "./providers-manager";
 import { SuppliersManager } from "./suppliers-manager";
+import { CaptureView } from "./capture-view";
 
 type WorkshopTab = "products" | "materials" | "finished";
 type ContactsTab = "all" | "customers" | "providers" | "suppliers";
@@ -61,7 +62,8 @@ export function WorkshopApp() {
   if (!data) return <main className="app-shell loading-screen"><p>{error ?? "Cargando taller..."}</p></main>;
 
   return <WorkshopShell data={data} screen={screen} setScreen={setScreen} error={error}>
-    {screen === "dashboard" && <DashboardView data={data} onAction={goToAction} />}
+    {screen === "dashboard" && <DashboardView data={data} onAction={goToAction} onCapture={() => setScreen("capture")} />}
+    {screen === "capture" && <CaptureView data={data} onCancel={() => setScreen("dashboard")} onChanged={reload} onCreated={async (order) => { const archived = await loadActiveData(); setSelectedOrder(filterOrderDetail(order, archived)); setScreen("orderDetail"); }} />}
     {screen === "orders" && <OrdersView rows={data.orders} onOpen={openOrder} onNew={() => setScreen("newOrder")} />}
     {screen === "newOrder" && <NewOrderForm data={data} onChanged={reload} onCancel={() => setScreen("orders")} onCreated={async (order) => { const archived = await loadActiveData(); setSelectedOrder(filterOrderDetail(order, archived)); setScreen("orderDetail"); }} />}
     {screen === "orderDetail" && selectedOrder && <OrderDetailView order={selectedOrder} data={data} onReload={reloadSelectedOrder} onArchived={async () => { setSelectedOrder(null); setScreen("orders"); await reload(); }} />}

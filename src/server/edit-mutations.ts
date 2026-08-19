@@ -1,22 +1,21 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { customers, orderItems, orders, payments, products, stockMovements } from "../db/schema";
+import { customers, orderItems, orders, payments, products } from "../db/schema";
+import { roundMoney, toNumber } from "../domain/money";
 import { paymentMethods, sizes } from "../domain/types";
 import type { AuthUser } from "./auth";
 import { isArchived } from "./record-archive";
+import { weightedAverageCost } from "./stock-cost";
 import { resolveFabricQty } from "./workshop-size-consumption";
 
 function json(payload: unknown, status = 200) { return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } }); }
-const numberValue = (value: unknown) => value == null ? 0 : Number(value);
-const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 const customerEdit = z.object({ action:z.literal("update"),id:z.string().uuid(),name:z.string().trim().min(2).max(160).optional(),phone:z.string().trim().max(80).optional().nullable(),instagramHandle:z.string().trim().max(120).optional().nullable(),notes:z.string().trim().max(1000).optional().nullable() });
 const orderEdit = z.object({ action:z.literal("update"),id:z.string().uuid(),customerId:z.string().uuid().optional(),productId:z.string().uuid().optional(),promisedDeliveryDate:z.string().optional().nullable(),size:z.enum(sizes).optional(),color:z.string().trim().min(1).max(120).optional(),agreedTotalPrice:z.coerce.number().positive().optional(),notes:z.string().trim().max(1000).optional().nullable() });
 const paymentEdit = z.object({ action:z.literal("update"),paymentId:z.string().uuid(),amount:z.coerce.number().positive().optional(),method:z.enum(paymentMethods).optional(),paidAt:z.string().optional(),notes:z.string().trim().max(500).optional().nullable() });
 
 function paidAtTimestamp(value:string){const parsed=/^\d{4}-\d{2}-\d{2}$/.test(value)?new Date(`${value}T12:00:00.000Z`):new Date(value);return Number.isNaN(parsed.getTime())?null:parsed;}
-async function weightedAverageCost(materialId:string){const [row]=await db.select({totalQty:sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned}>0 then ${stockMovements.quantitySigned} else 0 end),0)`,totalCost:sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned}>0 then ${stockMovements.quantitySigned}*coalesce(${stockMovements.unitCost},0) else 0 end),0)`}).from(stockMovements).where(eq(stockMovements.materialId,materialId));const qty=numberValue(row?.totalQty);return qty>0?numberValue(row?.totalCost)/qty:0;}
 
 export async function handleCustomerEdit(request:Request,user:AuthUser):Promise<Response|null>{
   const body=await request.json().catch(()=>null);if(!body||typeof body!=="object"||(body as {action?:unknown}).action!=="update")return null;
@@ -42,8 +41,8 @@ export async function handleOrderEdit(request:Request,user:AuthUser):Promise<Res
     const fabricQty=product.defaultFabricMaterialId?await resolveFabricQty(product.id,size,product.defaultFabricQtyMeters):null;
     if(product.defaultFabricMaterialId&&fabricQty==null)return json({error:"Configura el consumo de tela del producto"},409);
     const fabricCost=product.defaultFabricMaterialId&&fabricQty!=null?(await weightedAverageCost(product.defaultFabricMaterialId))*fabricQty:0;
-    const closureCost=product.defaultClosureMaterialId?(await weightedAverageCost(product.defaultClosureMaterialId))*numberValue(product.defaultClosureQty):0;
-    const packagingCost=product.defaultPackagingMaterialId?(await weightedAverageCost(product.defaultPackagingMaterialId))*numberValue(product.defaultPackagingQty):0;
+    const closureCost=product.defaultClosureMaterialId?(await weightedAverageCost(product.defaultClosureMaterialId))*toNumber(product.defaultClosureQty):0;
+    const packagingCost=product.defaultPackagingMaterialId?(await weightedAverageCost(product.defaultPackagingMaterialId))*toNumber(product.defaultPackagingQty):0;
     productPatch={productId:product.id,size,fabricMaterialId:product.defaultFabricMaterialId,plannedFabricQty:fabricQty==null?null:String(fabricQty),closureMaterialId:product.defaultClosureMaterialId,plannedClosureQty:product.defaultClosureQty,packagingMaterialId:product.defaultPackagingMaterialId,plannedPackagingQty:product.defaultPackagingQty,estimatedMaterialCost:fabricCost+closureCost>0?String(roundMoney(fabricCost+closureCost)):null,estimatedOwnLaborCost:product.defaultOwnLaborCost,estimatedPackagingCost:packagingCost>0?String(roundMoney(packagingCost)):null};
   }
 

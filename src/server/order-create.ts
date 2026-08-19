@@ -1,12 +1,15 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client";
-import { customers, embroideryJobs, orderItems, orders, orderStatusHistory, payments, products, stockMovements } from "../db/schema";
+import { customers, embroideryJobs, orderItems, orders, orderStatusHistory, payments, products } from "../db/schema";
 import { calculateOrderFinancials, embroideryOverdueDays } from "../domain/order";
+import { roundMoney, toNumber } from "../domain/money";
 import { limaBusinessDate, limaBusinessDateTimestamp } from "../domain/workshop";
 import { paymentMethods, sizes } from "../domain/types";
 import type { AuthUser } from "./auth";
 import { isArchived } from "./record-archive";
+import { nextOrderNumber, type DbTransaction } from "./order-number";
+import { weightedAverageCost } from "./stock-cost";
 import { resolveFabricQty } from "./workshop-size-consumption";
 
 const schema = z.object({
@@ -18,8 +21,16 @@ const schema = z.object({
   advancePaidAt: z.string().optional().nullable(), advanceNotes: z.string().trim().max(500).optional().nullable()
 });
 
-const numberValue = (value: unknown) => value == null ? 0 : Number(value);
-const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+export type OrderCreateBody = z.infer<typeof schema>;
+export type PreparedOrderCreate = {
+  body: OrderCreateBody;
+  product: typeof products.$inferSelect;
+  plannedFabricQty: number | null;
+  fabricCost: number;
+  closureCost: number;
+  packagingCost: number;
+  paidAt: Date | null;
+};
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -31,21 +42,7 @@ function paymentDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-async function weightedAverageCost(materialId: string) {
-  const [row] = await db.select({
-    totalQty: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} else 0 end), 0)`,
-    totalCost: sql<string>`coalesce(sum(case when ${stockMovements.quantitySigned} > 0 then ${stockMovements.quantitySigned} * coalesce(${stockMovements.unitCost}, 0) else 0 end), 0)`
-  }).from(stockMovements).where(eq(stockMovements.materialId, materialId));
-  const qty = numberValue(row?.totalQty);
-  return qty > 0 ? numberValue(row?.totalCost) / qty : 0;
-}
-
-async function nextOrderNumber(businessId: string) {
-  const [row] = await db.select({ maxNumber: sql<number>`coalesce(max(nullif(regexp_replace(${orders.orderNumber}, '[^0-9]', '', 'g'), '')::int), 0)` }).from(orders).where(eq(orders.businessId, businessId));
-  return `P-${String(Number(row?.maxNumber ?? 0) + 1).padStart(5, "0")}`;
-}
-
-async function loadOrder(businessId: string, id: string) {
+export async function loadOrder(businessId: string, id: string) {
   const [order] = await db.select().from(orders).where(and(eq(orders.id, id), eq(orders.businessId, businessId))).limit(1);
   if (!order) return null;
   const [customer] = await db.select().from(customers).where(eq(customers.id, order.customerId)).limit(1);
@@ -56,12 +53,12 @@ async function loadOrder(businessId: string, id: string) {
   const costs = items.map((item) => {
     const itemJobs = jobs.filter((job) => job.orderItemId === item.id);
     return {
-      estimatedMaterialCost: numberValue(item.estimatedMaterialCost), actualMaterialCost: item.actualMaterialCost == null ? null : numberValue(item.actualMaterialCost),
-      estimatedOwnLaborCost: numberValue(item.estimatedOwnLaborCost), actualOwnLaborCost: item.actualOwnLaborCost == null ? null : numberValue(item.actualOwnLaborCost),
-      estimatedPackagingCost: numberValue(item.estimatedPackagingCost), actualPackagingCost: item.actualPackagingCost == null ? null : numberValue(item.actualPackagingCost),
-      otherEstimatedDirectCost: numberValue(item.otherEstimatedDirectCost), otherActualDirectCost: item.otherActualDirectCost == null ? null : numberValue(item.otherActualDirectCost),
-      estimatedEmbroideryCost: itemJobs.reduce((sum, job) => sum + numberValue(job.estimatedCost), 0),
-      actualEmbroideryCost: itemJobs.some((job) => job.actualCost != null) ? itemJobs.reduce((sum, job) => sum + numberValue(job.actualCost), 0) : null
+      estimatedMaterialCost: toNumber(item.estimatedMaterialCost), actualMaterialCost: item.actualMaterialCost == null ? null : toNumber(item.actualMaterialCost),
+      estimatedOwnLaborCost: toNumber(item.estimatedOwnLaborCost), actualOwnLaborCost: item.actualOwnLaborCost == null ? null : toNumber(item.actualOwnLaborCost),
+      estimatedPackagingCost: toNumber(item.estimatedPackagingCost), actualPackagingCost: item.actualPackagingCost == null ? null : toNumber(item.actualPackagingCost),
+      otherEstimatedDirectCost: toNumber(item.otherEstimatedDirectCost), otherActualDirectCost: item.otherActualDirectCost == null ? null : toNumber(item.otherActualDirectCost),
+      estimatedEmbroideryCost: itemJobs.reduce((sum, job) => sum + toNumber(job.estimatedCost), 0),
+      actualEmbroideryCost: itemJobs.some((job) => job.actualCost != null) ? itemJobs.reduce((sum, job) => sum + toNumber(job.actualCost), 0) : null
     };
   });
   return {
@@ -71,67 +68,78 @@ async function loadOrder(businessId: string, id: string) {
     payments: paymentRows,
     history,
     embroideryJobs: jobs.map((job) => ({ ...job, overdueDays: embroideryOverdueDays(job.expectedReturnDate, job.receivedAt) })),
-    financials: calculateOrderFinancials({ agreedTotalPrice: numberValue(order.agreedTotalPrice), payments: paymentRows.map((row) => numberValue(row.amount)), items: costs })
+    financials: calculateOrderFinancials({ agreedTotalPrice: toNumber(order.agreedTotalPrice), payments: paymentRows.map((row) => toNumber(row.amount)), items: costs })
   };
 }
 
-export async function handleOrderCreateWithAdvance(request: Request, user: AuthUser): Promise<Response> {
-  const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return json({ error: "Revisa cliente, producto, talla, color, precio y adelanto" }, 400);
-  const body = parsed.data;
-  if (body.advanceAmount > body.agreedTotalPrice) return json({ error: "El adelanto no puede superar el total del pedido" }, 400);
-  if (await isArchived(user.businessId, "CUSTOMER", body.customerId)) return json({ error: "El cliente seleccionado fue borrado" }, 409);
-  if (await isArchived(user.businessId, "PRODUCT", body.productId)) return json({ error: "El producto seleccionado fue borrado" }, 409);
+export function parseOrderCreatePayload(value: unknown) {
+  return schema.safeParse(value);
+}
+
+export async function prepareOrderCreate(body: OrderCreateBody, user: AuthUser): Promise<PreparedOrderCreate | { error: string; status: number }> {
+  if (body.advanceAmount > body.agreedTotalPrice) return { error: "El adelanto no puede superar el total del pedido", status: 400 };
+  if (await isArchived(user.businessId, "CUSTOMER", body.customerId)) return { error: "El cliente seleccionado fue borrado", status: 409 };
+  if (await isArchived(user.businessId, "PRODUCT", body.productId)) return { error: "El producto seleccionado fue borrado", status: 409 };
   const [customer] = await db.select({ id: customers.id }).from(customers).where(and(eq(customers.id, body.customerId), eq(customers.businessId, user.businessId))).limit(1);
-  if (!customer) return json({ error: "Cliente no encontrado" }, 404);
+  if (!customer) return { error: "Cliente no encontrado", status: 404 };
   const [product] = await db.select().from(products).where(and(eq(products.id, body.productId), eq(products.businessId, user.businessId))).limit(1);
-  if (!product) return json({ error: "Producto no encontrado" }, 404);
+  if (!product) return { error: "Producto no encontrado", status: 404 };
   const paidAt = body.advanceAmount > 0 ? paymentDate(body.advancePaidAt) : null;
-  if (body.advanceAmount > 0 && !paidAt) return json({ error: "Fecha de adelanto inválida" }, 400);
+  if (body.advanceAmount > 0 && !paidAt) return { error: "Fecha de adelanto inválida", status: 400 };
 
   const plannedFabricQty = product.defaultFabricMaterialId ? await resolveFabricQty(product.id, body.size, product.defaultFabricQtyMeters) : null;
-  if (product.defaultFabricMaterialId && plannedFabricQty == null) return json({ error: "Configura el consumo de tela del producto" }, 409);
+  if (product.defaultFabricMaterialId && plannedFabricQty == null) return { error: "Configura el consumo de tela del producto", status: 409 };
   const fabricCost = product.defaultFabricMaterialId && plannedFabricQty != null ? (await weightedAverageCost(product.defaultFabricMaterialId)) * plannedFabricQty : 0;
-  const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * numberValue(product.defaultClosureQty) : 0;
-  const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * numberValue(product.defaultPackagingQty) : 0;
-  const orderNumber = await nextOrderNumber(user.businessId);
+  const closureCost = product.defaultClosureMaterialId ? (await weightedAverageCost(product.defaultClosureMaterialId)) * toNumber(product.defaultClosureQty) : 0;
+  const packagingCost = product.defaultPackagingMaterialId ? (await weightedAverageCost(product.defaultPackagingMaterialId)) * toNumber(product.defaultPackagingQty) : 0;
+  return { body, product, plannedFabricQty, fabricCost, closureCost, packagingCost, paidAt };
+}
 
-  const id = await db.transaction(async (tx) => {
-    const [order] = await tx.insert(orders).values({
-      businessId: user.businessId,
-      orderNumber,
-      customerId: body.customerId,
-      orderDate: limaBusinessDate(),
-      promisedDeliveryDate: body.promisedDeliveryDate || null,
-      fulfillmentType: "MADE_TO_ORDER",
-      status: "ORDER_RECEIVED",
-      agreedTotalPrice: String(body.agreedTotalPrice),
-      notes: body.notes || null
-    }).returning();
+export async function createOrderRecord(transaction: DbTransaction, user: AuthUser, prepared: PreparedOrderCreate) {
+  const { body, product, plannedFabricQty, fabricCost, closureCost, packagingCost, paidAt } = prepared;
+  const orderNumber = await nextOrderNumber(transaction, user.businessId);
+  const [order] = await transaction.insert(orders).values({
+    businessId: user.businessId,
+    orderNumber,
+    customerId: body.customerId,
+    orderDate: limaBusinessDate(),
+    promisedDeliveryDate: body.promisedDeliveryDate || null,
+    fulfillmentType: "MADE_TO_ORDER",
+    status: "ORDER_RECEIVED",
+    agreedTotalPrice: String(body.agreedTotalPrice),
+    notes: body.notes || null
+  }).returning();
 
-    await tx.insert(orderItems).values({
-      orderId: order.id,
-      productId: product.id,
-      size: body.size,
-      color: body.color,
-      quantity: body.quantity,
-      agreedUnitPrice: String(body.agreedTotalPrice / body.quantity),
-      fabricMaterialId: product.defaultFabricMaterialId,
-      plannedFabricQty: plannedFabricQty == null ? null : String(plannedFabricQty),
-      closureMaterialId: product.defaultClosureMaterialId,
-      plannedClosureQty: product.defaultClosureQty,
-      packagingMaterialId: product.defaultPackagingMaterialId,
-      plannedPackagingQty: product.defaultPackagingQty,
-      estimatedMaterialCost: fabricCost + closureCost > 0 ? String(roundMoney(fabricCost + closureCost)) : null,
-      estimatedOwnLaborCost: product.defaultOwnLaborCost,
-      estimatedPackagingCost: packagingCost > 0 ? String(roundMoney(packagingCost)) : null,
-      otherEstimatedDirectCost: null
-    });
-    await tx.insert(orderStatusHistory).values({ orderId: order.id, toStatus: "ORDER_RECEIVED", note: "Pedido creado" });
-    if (body.advanceAmount > 0 && paidAt) {
-      await tx.insert(payments).values({ businessId: user.businessId, orderId: order.id, amount: String(body.advanceAmount), method: body.advanceMethod, paidAt, notes: body.advanceNotes || "Adelanto al crear pedido" });
-    }
-    return order.id;
+  await transaction.insert(orderItems).values({
+    orderId: order.id,
+    productId: product.id,
+    size: body.size,
+    color: body.color,
+    quantity: body.quantity,
+    agreedUnitPrice: String(body.agreedTotalPrice / body.quantity),
+    fabricMaterialId: product.defaultFabricMaterialId,
+    plannedFabricQty: plannedFabricQty == null ? null : String(plannedFabricQty),
+    closureMaterialId: product.defaultClosureMaterialId,
+    plannedClosureQty: product.defaultClosureQty,
+    packagingMaterialId: product.defaultPackagingMaterialId,
+    plannedPackagingQty: product.defaultPackagingQty,
+    estimatedMaterialCost: fabricCost + closureCost > 0 ? String(roundMoney(fabricCost + closureCost)) : null,
+    estimatedOwnLaborCost: product.defaultOwnLaborCost,
+    estimatedPackagingCost: packagingCost > 0 ? String(roundMoney(packagingCost)) : null,
+    otherEstimatedDirectCost: null
   });
+  await transaction.insert(orderStatusHistory).values({ orderId: order.id, toStatus: "ORDER_RECEIVED", note: "Pedido creado" });
+  if (body.advanceAmount > 0 && paidAt) {
+    await transaction.insert(payments).values({ businessId: user.businessId, orderId: order.id, amount: String(body.advanceAmount), method: body.advanceMethod, paidAt, notes: body.advanceNotes || "Adelanto al crear pedido" });
+  }
+  return order.id;
+}
+
+export async function handleOrderCreateWithAdvance(request: Request, user: AuthUser): Promise<Response> {
+  const parsed = parseOrderCreatePayload(await request.json().catch(() => null));
+  if (!parsed.success) return json({ error: "Revisa cliente, producto, talla, color, precio y adelanto" }, 400);
+  const prepared = await prepareOrderCreate(parsed.data, user);
+  if ("error" in prepared) return json({ error: prepared.error }, prepared.status);
+  const id = await db.transaction((tx) => createOrderRecord(tx, user, prepared));
   return json(await loadOrder(user.businessId, id), 201);
 }

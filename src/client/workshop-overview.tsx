@@ -12,7 +12,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-export function DashboardView({ data, onAction }: { data: Bootstrap; onAction?: (action: "order" | "purchase" | "expense" | "adjustment") => void }) {
+export function DashboardView({ data, onAction, onCapture }: { data: Bootstrap; onAction?: (action: "order" | "purchase" | "expense" | "adjustment") => void; onCapture?: () => void }) {
   const urgent = [...data.dashboard.lateOrders, ...data.dashboard.dueSoon].filter((row, index, all) => all.findIndex((item) => item.id === row.id) === index).slice(0, 5);
   const lowStock = data.materials.filter((material) => Number(material.minimumStock ?? 0) > 0 && material.currentQuantity <= Number(material.minimumStock)).sort((a,b) => a.currentQuantity - b.currentQuantity).slice(0, 6);
   return <div className="stack">
@@ -24,6 +24,7 @@ export function DashboardView({ data, onAction }: { data: Bootstrap; onAction?: 
       <Metric label="Por cobrar" value={money(data.dashboard.money.receivable)} />
       <Metric label="Margen ref." value={money(data.dashboard.money.margin)} />
     </section>
+    <section className="capture-launch"><div><p className="eyebrow">Menos data entry</p><h2>¿Te mandaron un pedido por chat?</h2><p className="muted">Pega el mensaje y te propongo los campos. Tú confirmas antes de guardarlo.</p></div><button type="button" onClick={onCapture}>＋ Pegar mensaje</button></section>
     <section><h2>Agenda del taller</h2><p className="muted">Entregas próximas, vencidas y trabajos que requieren atención.</p>{urgent.length ? <OrderRows rows={urgent} /> : <p className="muted">No hay entregas que requieran atención inmediata.</p>}{data.dashboard.lateEmbroideryJobs.length > 0 && <p className="warning">Hay {data.dashboard.lateEmbroideryJobs.length} bordado(s) atrasado(s).</p>}</section>
     <section><h2>Inventario bajo</h2>{lowStock.length ? <div className="list">{lowStock.map((material) => <div className="row static" key={material.id}><span><strong>{material.name}</strong><small>{material.color || material.category} · mínimo {Number(material.minimumStock).toFixed(2)}</small></span><strong>{material.currentQuantity.toFixed(2)} {material.unit === "METER" ? "m" : "un."}</strong></div>)}</div> : <p className="muted">No hay materiales por debajo de su mínimo configurado.</p>}</section>
     <section><h2>Dinero</h2><div className="money-grid"><span>Ventas acordadas</span><strong>{money(data.dashboard.money.sales)}</strong><span>Cobrado</span><strong>{money(data.dashboard.money.collected)}</strong><span>Por cobrar</span><strong>{money(data.dashboard.money.receivable)}</strong></div><p className="muted">Compras, gastos y flujo mensual están juntos en Dinero.</p></section>

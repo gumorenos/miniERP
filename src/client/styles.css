@@ -127,6 +127,16 @@ section { background: var(--paper); border: 1px solid var(--line); border-radius
 .details-panel { background: #fffafc; border-color: #f3cfdd; }
 .capture-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .capture-card { border-color: #f0c3d4; box-shadow: 0 8px 24px rgba(233, 30, 99, .06); }
+.capture-launch { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: linear-gradient(130deg, #fffdfa 0 58%, #fde8f0 100%); border-color: #f0c3d4; }
+.capture-launch h2 { margin-bottom: 3px; }
+.capture-launch p:last-child { margin-bottom: 0; }
+.capture-message-form { margin-top: 13px; }
+.capture-draft { border-color: #d9cbed; box-shadow: 0 8px 24px rgba(103, 58, 183, .06); }
+.capture-quote { margin: 0 0 14px; padding: 12px 14px; border-left: 4px solid var(--magenta); border-radius: 0 10px 10px 0; background: #fff7fa; color: #4c3c47; }
+.capture-status { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 999px; background: var(--soft-purple); color: var(--purple); font-size: .76rem; font-weight: 800; white-space: nowrap; }
+.capture-status.pending { background: var(--soft-berry); color: var(--magenta-dark); }
+.capture-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.success { padding: 10px 12px; border: 1px solid #c9dfaa; border-radius: 12px; background: var(--soft-green); color: #46652a; font-weight: 750; }
 .input-with-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; min-width: 0; }
 .input-with-action label { min-width: 0; }
 .mini-action { min-height: 44px; padding: 0 10px; color: var(--magenta-dark); background: var(--soft-berry); font-size: .76rem; white-space: nowrap; }
@@ -196,6 +206,9 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(233, 30, 99,
   .row > span:last-child { width: 100%; justify-content: flex-start; }
   .row > span:last-child > * { flex: 1 1 auto; }
   .quick-actions button { min-height: 52px; font-size: .72rem; }
+  .capture-launch { align-items: stretch; flex-direction: column; }
+  .capture-launch button { width: 100%; }
+  .capture-actions { display: grid; grid-template-columns: 1fr; }
   .app-footer { align-items: center; flex-direction: column; }
 }
 @media (min-width: 720px) {

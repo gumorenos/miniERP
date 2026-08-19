@@ -32,6 +32,27 @@ async function main() {
   check(provider, "missing E2E embroidery provider fixture; seed isolated QA fixtures before running this flow");
 
   const customer = await request<any>("/api/customers", token, { method: "POST", body: JSON.stringify({ name: `Cliente E2E ${Date.now()}` }) });
+  const captureMessage = customer.name + " quiere " + product.name + " azul talla M, dejó 100 por Yape y lo quiere para el 8";
+  const capture = await request<any>("/api/capture/drafts", token, {
+    method: "POST",
+    body: JSON.stringify({ channel: "INTERNAL", sourceMessageId: "e2e-capture-" + Date.now(), rawText: captureMessage })
+  });
+  check(capture.draft.intent === "NEW_ORDER", "capture did not identify a new order");
+  check(capture.draft.payload.customerId === customer.id, "capture did not resolve the customer");
+  check(capture.draft.payload.productId === product.id, "capture did not resolve the product");
+  check(capture.draft.status === "PENDING", "capture draft was not left pending before confirmation");
+  const captureDuplicate = await request<any>("/api/capture/drafts", token, {
+    method: "POST",
+    body: JSON.stringify({ channel: "INTERNAL", sourceMessageId: capture.draft.sourceMessageId, rawText: captureMessage })
+  });
+  check(captureDuplicate.duplicate === true && captureDuplicate.draft.id === capture.draft.id, "capture source id was not idempotent");
+  const capturedOrder = await request<any>("/api/capture/drafts/" + capture.draft.id + "/confirm", token, {
+    method: "POST",
+    body: JSON.stringify({ payload: capture.draft.payload })
+  });
+  check(capturedOrder.draft.status === "CONFIRMED", "capture draft was not confirmed");
+  check(capturedOrder.order?.status === "ORDER_RECEIVED", "capture did not create the order");
+  check(capturedOrder.order?.payments?.length === 1 || capturedOrder.order?.financials?.totalPaid === 100, "capture did not preserve the advance");
   const order = await request<any>("/api/orders", token, {
     method: "POST",
     body: JSON.stringify({ customerId: customer.id, productId: product.id, size: "S", color: "Negro", quantity: 1, agreedTotalPrice: 320, promisedDeliveryDate: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) })

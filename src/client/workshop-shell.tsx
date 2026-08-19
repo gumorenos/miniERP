@@ -4,11 +4,12 @@ import type { Bootstrap } from "./api";
 const tabs = [["dashboard", "Inicio", "⌂"], ["orders", "Pedidos", "▦"], ["workshop", "Taller", "✦"], ["contacts", "Contactos", "◌"], ["money", "Dinero", "S/"]] as const;
 
 const titles: Record<string, string> = {
-  dashboard: "Inicio", orders: "Pedidos", newOrder: "Nuevo pedido", orderDetail: "Detalle del pedido", workshop: "Taller", contacts: "Contactos", money: "Dinero"
+  dashboard: "Inicio", capture: "Capturar por chat", orders: "Pedidos", newOrder: "Nuevo pedido", orderDetail: "Detalle del pedido", workshop: "Taller", contacts: "Contactos", money: "Dinero"
 };
 
 function activeTab(screen: string) {
   if (screen === "newOrder" || screen === "orderDetail") return "orders";
+  if (screen === "capture") return "dashboard";
   return screen;
 }
 

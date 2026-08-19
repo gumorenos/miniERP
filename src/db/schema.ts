@@ -78,6 +78,11 @@ export const productSizePrices = pgTable(
   (table) => [unique().on(table.productId, table.size)]
 );
 
+export const orderNumberCounters = pgTable("order_number_counters", {
+  businessId: uuid("business_id").primaryKey().references(() => businesses.id, { onDelete: "cascade" }),
+  lastNumber: integer("last_number").default(0).notNull()
+});
+
 export const orders = pgTable(
   "orders",
   {
@@ -230,6 +235,32 @@ export const expenses = pgTable("expenses", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 });
+
+export const captureDrafts = pgTable(
+  "capture_drafts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id),
+    channel: text("channel").notNull(),
+    sourceMessageId: text("source_message_id"),
+    rawText: text("raw_text").notNull(),
+    intent: text("intent").notNull(),
+    status: text("status").notNull().default("PENDING"),
+    payloadJson: text("payload_json").notNull(),
+    missingFieldsJson: text("missing_fields_json").notNull().default("[]"),
+    ambiguousFieldsJson: text("ambiguous_fields_json").notNull().default("[]"),
+    parserVersion: text("parser_version").notNull(),
+    confirmedOrderId: uuid("confirmed_order_id").references(() => orders.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    ...timestamps
+  },
+  (table) => [
+    index("capture_drafts_business_status_idx").on(table.businessId, table.status, table.createdAt),
+    uniqueIndex("capture_drafts_source_idx").on(table.businessId, table.channel, table.sourceMessageId).where(sql`${table.sourceMessageId} IS NOT NULL`)
+  ]
+);
 
 export const orderRelations = relations(orders, ({ one, many }) => ({
   customer: one(customers, { fields: [orders.customerId], references: [customers.id] }),

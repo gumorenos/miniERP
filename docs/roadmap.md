@@ -14,6 +14,9 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 ## Operación del taller
 
 - Automatización de WhatsApp mediante proveedor/API. La etapa actual solo genera enlaces y mensajes para revisión humana antes de enviar.
+- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados localmente (2026-08-18).** Ya incluye contador transaccional de pedidos, confirmación idempotente de borradores, protección contra carreras de `sourceMessageId`, manejo global de errores, headers, rate limit básico y `POST /api/integrations/telegram/webhook`. Falta validarlo con PostgreSQL aislado y la API de Telegram antes de publicar/activar. OpenClaw queda fuera del runtime funcional y se usará únicamente para testing, QA y despliegue. Conectar WhatsApp oficial cuando la usuaria esté disponible. Telegram y WhatsApp deben ser adaptadores intercambiables, no dos implementaciones de negocio distintas.
+- Intenciones iniciales de captura: nuevo pedido, nuevo cliente, nueva compra, nuevo gasto y ajuste de stock. La IA propone datos; nunca crea silenciosamente.
+- Audio e imágenes quedan después de estabilizar la captura textual y la confirmación.
 - Fotos/adjuntos por producto y pedido: referencia de la clienta, bordado enviado/recibido y prenda terminada. Evaluar almacenamiento R2 u objeto equivalente antes de implementarlo.
 - Medidas corporales y fittings por cliente **solo si el flujo real lo requiere**; no convertirlo en requisito para pedidos por talla S/M/L/XL/XXL.
 - Consumo de otros materiales adicionales (hilo, accesorios u otros) si aparecen como costo/stock relevante en el uso real.
