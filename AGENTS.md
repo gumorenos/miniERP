@@ -30,7 +30,7 @@ La usuaria principal indicó que le da pereza ingresar información a mano. La s
 - Rollback preparado: `minierp_samiiwara_prod-app:rollback-dddb892-c6781cb3649c`.
 - La rama remota anterior `origin/codex/ux-less-data-entry` está en `49cb891` y fue preservada.
 - QA aislado y deploy controlado fueron completados por OpenClaw. No se hizo merge ni force-push sobre la rama anterior.
-- Desarrollo actual (no desplegado): rama local `codex/capture-operational-confirmation`, commit local `8cfa285cf0a080a3c29b5d7190121024e1b4f9b3`, con confirmación transaccional de compras, gastos y ajustes de stock; producción sigue intacta en `1a76b00f28ddd5676753133689e24405d0f953f0`.
+- Desarrollo actual (no desplegado): rama `codex/capture-operational-confirmation`, candidato remoto de re-QA `de5d3f6f5f088421fee8f3030652808076965656`, con confirmación transaccional de compras, gastos y ajustes de stock y una corrección del baseline del E2E de corte; producción sigue intacta en `1a76b00f28ddd5676753133689e24405d0f953f0`.
 - Cloudflare Access: pendiente; no habilitado. No cambiar DNS, Tunnel ni exposición sin una tarea explícita.
 
 ## Stack y reglas técnicas
@@ -67,7 +67,7 @@ El núcleo interno de captura y el adaptador directo de Telegram ya están imple
 
 - Implementado: parser determinista `rules-v1`, resolución contra el catálogo activo, tabla/migración `capture_drafts` (`0011_capture_drafts.sql`), borradores pendientes, idempotencia por `channel + sourceMessageId` y pantalla interna mobile-first.
 - Confirmación habilitada para `NEW_ORDER` y `NEW_CUSTOMER`, siempre con revisión humana. En la rama local `codex/capture-operational-confirmation` también se habilita, con revisión humana, `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; requiere la migración `0015_capture_operation_confirmation.sql` y QA aislado antes de desplegar.
-- El flujo E2E crea, duplica, confirma y verifica un pedido capturado por mensaje, incluyendo el adelanto; el candidato local añade cobertura de compra, gasto y ajuste de stock.
+- El flujo E2E crea, duplica, confirma y verifica un pedido capturado por mensaje, incluyendo el adelanto; el candidato de re-QA añade cobertura de compra, gasto, ajuste de stock y valida el descuento de tela desde la línea base correcta después de esas operaciones.
 - La implementación debe ser independiente del canal: la UI interna, Telegram directo y WhatsApp deben llamar al mismo núcleo; el webhook directo está desplegado, pero todavía no hay bot productivo configurado.
 - El endpoint `POST /api/integrations/telegram/capture` pertenece al adaptador provisional para OpenClaw y queda fuera del diseño objetivo. Ya no está conectado desde `secureFetch`; no cablearlo en producción. El endpoint directo es `POST /api/integrations/telegram/webhook`.
 - Hardening local agregado: contador transaccional por negocio para números de pedido, confirmación de borradores con bloqueo `FOR UPDATE`, idempotencia ante carreras de `sourceMessageId`, `confirmed_order_id`, validación de nombres de cliente, helpers monetarios centralizados, manejo global de errores, headers de seguridad, rate limit de escrituras y Docker con dependencias de producción.
@@ -93,7 +93,7 @@ El núcleo interno de captura y el adaptador directo de Telegram ya están imple
 2. **Estabilizar captura:** completado; concurrencia e idempotencia validadas en PostgreSQL.
 3. **Completar esquema y pruebas:** completado; migraciones `0012`, `0013` y `0014`, E2E y regresión validados.
 4. **Telegram piloto:** código y QA aislado completados; falta configurar secretos, registrar el webhook y realizar la prueba sintética con el bot real. OpenClaw no participa en runtime.
-5. **Completar operaciones:** implementación local terminada para confirmar `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; falta QA PostgreSQL/concurrencia, revisión manual y despliegue controlado.
+5. **Completar operaciones:** implementación local terminada para confirmar `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; el primer E2E quedó bloqueado por una aserción incorrecta del baseline de stock, corregida en `de5d3f6f5f088421fee8f3030652808076965656`; falta re-QA PostgreSQL/concurrencia, revisión manual y despliegue controlado.
 6. **Seguimiento conversacional:** permitir que respuestas como “talla M” o “el precio es 280” actualicen el mismo borrador, con expiración y auditoría.
 7. **Entrada multimodal:** voz/transcripción primero; imágenes/OCR después de estabilizar texto.
 8. **WhatsApp oficial:** añadir otro adaptador al mismo contrato normalizado, sin duplicar lógica ni reutilizar sesiones personales de OpenClaw.
