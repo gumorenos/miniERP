@@ -1,15 +1,15 @@
 # QA pendiente — miniERP / Samiiwara
 
-Última actualización: 2026-08-18
+Última actualización: 2026-08-19
 
 ## Base revisada
 
-- Rama candidata: `codex/telegram-direct-candidate`
-- Commit candidato: `HEAD` de esa rama (`Implement direct Telegram capture webhook`); obtener el SHA con `git rev-parse HEAD` después del push.
-- Producción: no tocada.
-- OpenClaw: no requerido para el desarrollo; se usará únicamente para QA/despliegue cuando vuelva a estar disponible.
+- Rama validada/desplegada: `codex/telegram-direct-candidate`
+- Commit exacto: `1a76b00f28ddd5676753133689e24405d0f953f0`
+- Producción: desplegada y saludable en `https://prueba.gumorenos.space`.
+- OpenClaw: usado únicamente para QA y despliegue; no forma parte del runtime.
 
-## Validaciones ejecutadas localmente
+## Validaciones ejecutadas
 
 - TypeScript (`tsc --noEmit`): PASS.
 - ESLint: PASS.
@@ -17,63 +17,45 @@
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
-Estas validaciones no prueban la ejecución contra PostgreSQL.
+## QA aislado completado por OpenClaw
 
-## Pendiente antes de aprobar el cambio
+- `npm ci`: PASS, 199 paquetes.
+- `npm run qa`: PASS.
+- Migraciones desde cero: PASS, 14/14.
+- Migraciones sobre copia de la base real: PASS; datos intactos (1 negocio, 4 clientes y 4 pedidos).
+- Contador de pedidos, borradores, triggers `updated_at`, E2E y regresión: PASS.
+- Concurrencia/idempotencia: PASS, 6/6 escenarios.
+- Headers, rate limit, aislamiento del webhook directo y ausencia de conexión al endpoint legacy de OpenClaw: PASS.
+- Docker build: PASS.
 
-### P0 — PostgreSQL aislado
+## Deploy controlado completado
 
-- [ ] Ejecutar las migraciones desde cero en una base efímera.
-- [ ] Ejecutar las migraciones sobre una copia de una base existente y verificar que no alteren datos históricos.
-- [ ] Confirmar que `0012_order_number_counters.sql` inicializa el contador con el máximo existente.
-- [ ] Confirmar que `0013_capture_confirmation.sql` agrega `confirmed_order_id` y conserva los borradores existentes.
-- [ ] Confirmar que `0014_updated_at_triggers.sql` funciona en todas las tablas con `updated_at`:
-  `businesses`, `users`, `customers`, `materials`, `products`, `orders`, `suppliers`, `embroidery_providers` y `capture_drafts`.
+- Backup previo: `backups/minierp-samiiwara/minierp-prod-pre-1a76b00-20260819T000527-0500.dump`.
+- Imagen de rollback: `minierp_samiiwara_prod-app:rollback-dddb892-c6781cb3649c`.
+- Migraciones en producción: PASS, 14/14.
+- Healthcheck: PASS, `/api/health` devuelve `200` con base de datos `ok`.
+- Smoke de sesión sin token: PASS, devuelve `401`.
+- Login con credenciales bootstrap: `400` esperado; son credenciales one-shot ya rotadas.
+- Rollback: no requerido.
 
-### P0 — Concurrencia e idempotencia
+## Pendiente post-deploy: Telegram real
 
-- [ ] Crear varios pedidos simultáneamente para el mismo negocio y comprobar que todos reciben números distintos y consecutivos.
-- [ ] Enviar dos veces el mismo `channel + sourceMessageId` simultáneamente y comprobar que existe un solo borrador.
-- [ ] Confirmar el mismo borrador de pedido simultáneamente y comprobar que existe un solo pedido, un solo adelanto y un solo estado `CONFIRMED`.
-- [ ] Repetir la confirmación después de completarse y comprobar que devuelve el pedido existente sin crear otro.
-- [ ] Confirmar simultáneamente un borrador `NEW_CUSTOMER` y comprobar que no duplica el cliente.
-- [ ] Rechazar simultáneamente un borrador y comprobar que solo una solicitud gana.
+Los gates P0/P1 del candidato están cerrados. Queda pendiente activar el canal Telegram:
 
-### P1 — Regresión funcional
+### Configuración y prueba pendiente: Telegram real
 
-- [ ] Ejecutar `npm run test:e2e` contra una base aislada.
-- [ ] Crear pedido manual con y sin adelanto.
-- [ ] Editar pedido, producto, talla y pagos.
-- [ ] Verificar costos estimados, margen y saldo, incluyendo valores negativos y decimales.
-- [ ] Verificar que los headers `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy` aparecen también en respuestas de Hono y archivos estáticos.
-- [ ] Verificar rate limit en login y mutaciones, incluyendo `429` y `Retry-After`.
-- [ ] Verificar que un error inesperado no expone stack traces ni detalles de PostgreSQL.
-- [ ] Construir la imagen Docker y confirmar que el runtime contiene solo dependencias de producción.
+- [ ] Guardar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BUSINESS_ID`, `TELEGRAM_USER_ID` y `TELEGRAM_ALLOWED_CHAT_IDS` en el entorno privado de producción.
+- [ ] Registrar el webhook oficial usando la URL HTTPS y el secreto configurado.
+- [ ] Probar con datos sintéticos: mensaje, borrador, botones confirmar/rechazar y callbacks.
+- [ ] Repetir un update y confirmar que no duplica el borrador ni el pedido.
+- [ ] Verificar `sendMessage` y `answerCallbackQuery` con el bot real.
+- [ ] Confirmar el flujo con la usuaria y definir el siguiente incremento: compras, gastos y ajustes.
 
-### P1 — Captura conversacional interna
-
-- [ ] Crear borrador de pedido completo y dejarlo pendiente antes de confirmar.
-- [ ] Resolver cliente y producto desde el catálogo.
-- [ ] Rechazar cliente/producto ambiguo.
-- [ ] Confirmar nombre de cliente de un carácter y comprobar que se rechaza.
-- [ ] Verificar que compras, gastos y ajustes siguen siendo borradores y no mutan el dominio.
-
-### P1 — Telegram directo
-
-El webhook directo ya está implementado localmente en `POST /api/integrations/telegram/webhook`. Falta validarlo contra PostgreSQL y la API de Telegram en un entorno controlado:
-
-- [ ] Validación del header `x-telegram-bot-api-secret-token` y configuración fail-closed.
-- [ ] Lista autorizada de `chat_id`, incluyendo chats negativos de grupos.
-- [ ] Idempotencia por `chat_id:message_id` con dos entregas del mismo update.
-- [ ] Botones de confirmar/descarte y callbacks con `draftId` UUID.
-- [ ] Confirmación concurrente del mismo callback sin duplicar pedido o cliente.
-- [ ] Token y secreto únicamente en el entorno privado del servidor.
-- [ ] Prueba con datos sintéticos sin activar ningún puente de OpenClaw.
-- [ ] Verificar mensajes enviados por `sendMessage` y `answerCallbackQuery`.
+El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el endpoint legacy de OpenClaw ni enviarle tokens o datos de negocio.
 
 ## Condición de aprobación
 
-No hacer merge ni deploy hasta completar los P0 en PostgreSQL aislado. El QA debe reportar el commit exacto probado, la base usada, migraciones aplicadas, resultados de concurrencia y confirmación explícita de que producción no fue tocada.
+El commit `1a76b00f28ddd5676753133689e24405d0f953f0` quedó aprobado para el despliegue y está en producción. No activar Telegram con datos reales hasta completar la configuración privada y la prueba sintética del canal.
 
 ## Comandos sugeridos
 

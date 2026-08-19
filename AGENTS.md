@@ -1,6 +1,6 @@
 # miniERP / Samiiwara — continuidad para agentes
 
-Última actualización: 2026-08-18
+Última actualización: 2026-08-19
 
 Este archivo es el punto de entrada para continuar el desarrollo si la conversación original se llena, se cambia de herramienta o se agota el saldo del agente. Leerlo antes de modificar código.
 
@@ -15,7 +15,7 @@ Este archivo es el punto de entrada para continuar el desarrollo si la conversac
 
 La usuaria principal indicó que le da pereza ingresar información a mano. La siguiente prioridad funcional es captura conversacional: escribir o enviar un mensaje y obtener un borrador de pedido/compra/gasto para confirmar.
 
-## Estado al 2026-08-18
+## Estado al 2026-08-19
 
 - Repositorio: `gumorenos/miniERP`
 - Producción: `https://prueba.gumorenos.space`
@@ -23,11 +23,13 @@ La usuaria principal indicó que le da pereza ingresar información a mano. La s
 - Compose productivo: `minierp_samiiwara_prod`
 - App en VPS: `127.0.0.1:3050 -> 3000`
 - Base de datos: PostgreSQL privado en Docker, volumen `minierp_samiiwara_prod_minierp_pg`
-- Producción última confirmada: commit `dddb8921568b41e929c48cb96fe5e5fa58fb6760`
-- Candidato QA: `HEAD` de `codex/telegram-direct-candidate`; obtener el SHA con `git rev-parse HEAD`. Se publicará en una rama nueva, sin sobrescribir la rama existente.
-- Rama candidata: `codex/telegram-direct-candidate`
-- Checkout local actual: rama `codex/telegram-direct-candidate`, con el checkpoint `Implement direct Telegram capture webhook`. La rama remota existente `origin/codex/ux-less-data-entry` está en `49cb891`; el candidato nuevo se publicará separado y todavía no se ha desplegado.
-- No hay un resultado de QA/deploy que autorice estos cambios locales. No asumir que producción ya cambió.
+- Producción última confirmada: commit `1a76b00f28ddd5676753133689e24405d0f953f0`
+- Rama desplegada: `codex/telegram-direct-candidate`
+- Health de producción: `200 {"ok":true,"database":"ok"}`; contenedor saludable.
+- Backup pre-deploy: `backups/minierp-samiiwara/minierp-prod-pre-1a76b00-20260819T000527-0500.dump`.
+- Rollback preparado: `minierp_samiiwara_prod-app:rollback-dddb892-c6781cb3649c`.
+- La rama remota anterior `origin/codex/ux-less-data-entry` está en `49cb891` y fue preservada.
+- QA aislado y deploy controlado fueron completados por OpenClaw. No se hizo merge ni force-push sobre la rama anterior.
 - Cloudflare Access: pendiente; no habilitado. No cambiar DNS, Tunnel ni exposición sin una tarea explícita.
 
 ## Stack y reglas técnicas
@@ -58,20 +60,19 @@ La usuaria principal indicó que le da pereza ingresar información a mano. La s
 
 ## Siguiente funcionalidad: captura conversacional
 
-El núcleo interno de captura y el adaptador directo de Telegram ya están implementados localmente. La rama también conserva un adaptador HTTP provisional diseñado para OpenClaw, pero queda fuera de la arquitectura acordada: no debe activarse ni ampliarse.
+El núcleo interno de captura y el adaptador directo de Telegram ya están implementados y desplegados. La rama también conserva un adaptador HTTP provisional diseñado para OpenClaw, pero queda fuera de la arquitectura acordada: no debe activarse ni ampliarse.
 
 ### Estado de Chat-to-ERP v1
 
 - Implementado: parser determinista `rules-v1`, resolución contra el catálogo activo, tabla/migración `capture_drafts` (`0011_capture_drafts.sql`), borradores pendientes, idempotencia por `channel + sourceMessageId` y pantalla interna mobile-first.
 - Confirmación habilitada para `NEW_ORDER` y `NEW_CUSTOMER`, siempre con revisión humana. `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT` se reconocen y quedan como borrador, pero aún no mutan el dominio.
 - El flujo E2E ahora crea, duplica, confirma y verifica un pedido capturado por mensaje, incluyendo el adelanto.
-- La implementación debe ser independiente del canal: la UI interna, Telegram directo y WhatsApp deben llamar al mismo núcleo; el webhook directo existe localmente, pero todavía no hay bot productivo configurado.
+- La implementación debe ser independiente del canal: la UI interna, Telegram directo y WhatsApp deben llamar al mismo núcleo; el webhook directo está desplegado, pero todavía no hay bot productivo configurado.
 - El endpoint `POST /api/integrations/telegram/capture` pertenece al adaptador provisional para OpenClaw y queda fuera del diseño objetivo. Ya no está conectado desde `secureFetch`; no cablearlo en producción. El endpoint directo es `POST /api/integrations/telegram/webhook`.
 - Hardening local agregado: contador transaccional por negocio para números de pedido, confirmación de borradores con bloqueo `FOR UPDATE`, idempotencia ante carreras de `sourceMessageId`, `confirmed_order_id`, validación de nombres de cliente, helpers monetarios centralizados, manejo global de errores, headers de seguridad, rate limit de escrituras y Docker con dependencias de producción.
-- Última validación local: ESLint, TypeScript, 38 pruebas en 11 archivos y build de Vite pasan. El E2E con migración/base real y la API real de Telegram quedan pendientes de QA aislado porque este entorno no tiene Docker ni PostgreSQL.
-- Bloqueo técnico de este entorno: no hay Docker ni PostgreSQL local, por lo que la migración/API/E2E de base deben verificarse en un worktree y base aislados de QA.
-- Producción no fue tocada por esta tarea.
-- El candidato se publicará en `codex/telegram-direct-candidate`; no se hará deploy desde este entorno. Producción no fue tocada. El siguiente checkpoint es ejecutar el QA PostgreSQL descrito en `docs/qa-pendiente.md` con el SHA remoto exacto.
+- QA aislado completado: `npm ci`, `npm run qa`, 14/14 migraciones desde cero, migración sobre copia real, E2E, 6/6 pruebas de concurrencia/idempotencia, headers, rate limit, Docker build y ausencia de conexión al endpoint legacy de OpenClaw.
+- Deploy controlado completado: backup, migraciones 14/14, health y smoke correctos; no hubo rollback.
+- Telegram real aún no está activado porque producción no tiene sus credenciales configuradas. El webhook directo no fue probado contra la API real de Telegram.
 
 ### Revisión externa y PR
 
@@ -87,10 +88,10 @@ El núcleo interno de captura y el adaptador directo de Telegram ya están imple
 
 ### Roadmap acordado desde este checkpoint
 
-1. **Cerrar la base técnica del review:** implementación local completada para helpers monetarios, eliminación de duplicación, headers/error handling, rate limit y Docker; pendiente revisar el diff final y validarlo en QA.
-2. **Estabilizar captura:** implementación local completada con bloqueo transaccional, contador seguro, idempotencia de mensajes y confirmación repetida; pendiente probar concurrencia en PostgreSQL.
-3. **Completar esquema y pruebas:** migraciones `0012`, `0013` y `0014` agregadas; 31 pruebas locales pasan; pendiente ejecutar migraciones, triggers, E2E y pruebas concurrentes en una base aislada.
-4. **Telegram piloto:** adaptador directo implementado localmente en `src/server/telegram-webhook.ts`; falta guardar el token en el entorno del servidor, registrar el webhook, validar con QA aislado sin datos reales y recién después activar. OpenClaw no participa.
+1. **Cerrar la base técnica del review:** completado y validado en QA aislado.
+2. **Estabilizar captura:** completado; concurrencia e idempotencia validadas en PostgreSQL.
+3. **Completar esquema y pruebas:** completado; migraciones `0012`, `0013` y `0014`, E2E y regresión validados.
+4. **Telegram piloto:** código y QA aislado completados; falta configurar secretos, registrar el webhook y realizar la prueba sintética con el bot real. OpenClaw no participa en runtime.
 5. **Completar operaciones:** habilitar con confirmación `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`, reutilizando servicios de dominio existentes.
 6. **Seguimiento conversacional:** permitir que respuestas como “talla M” o “el precio es 280” actualicen el mismo borrador, con expiración y auditoría.
 7. **Entrada multimodal:** voz/transcripción primero; imágenes/OCR después de estabilizar texto.
@@ -200,7 +201,7 @@ Nunca pedir a OpenClaw que “arregle” el código durante QA. Si encuentra un 
 - `docs/mvp-spec.md`: especificación funcional inicial.
 - `docs/deployment.md`: desarrollo, QA y producción.
 - `docs/qa.md`: criterios de validación.
-- `docs/qa-pendiente.md`: checklist de PostgreSQL, concurrencia, regresión y Telegram pendiente para este checkpoint.
+- `docs/qa-pendiente.md`: evidencia de QA/deploy y checklist post-deploy de Telegram.
 - `docs/openclaw-qa-prompt.md`: prompt corto para QA/despliegue condicionado; reemplazar el SHA antes de enviarlo.
 - `src/domain/whatsapp.ts`: helpers actuales para enlaces y mensajes WhatsApp; no es todavía una integración API.
 - `src/client/capture-preferences.ts`: preferencias locales de captura.
@@ -211,7 +212,7 @@ Nunca pedir a OpenClaw que “arregle” el código durante QA. Si encuentra un 
 
 1. Leer este archivo, `README.md`, `docs/roadmap.md` y `docs/deployment.md`.
 2. Ejecutar `git status --short --branch` y `git log -8 --oneline --decorate`.
-3. Confirmar si existe un commit candidato publicado y un reporte QA de OpenClaw; nunca asumir que el remoto o producción contienen el checkout local.
+3. Confirmar si existe un commit candidato publicado y un reporte QA de OpenClaw; el commit desplegado actual es `1a76b00f28ddd5676753133689e24405d0f953f0`.
 4. Revisar producción solo de forma no destructiva; no tocarla para desarrollar.
 5. Implementar el siguiente paso de Chat-to-ERP en una rama de desarrollo.
 6. Ejecutar `npm run qa` y pruebas específicas antes de publicar.
