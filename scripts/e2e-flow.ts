@@ -92,7 +92,9 @@ async function main() {
   });
   check(capturedAdjustment.draft.status === "CONFIRMED" && capturedAdjustment.confirmed?.entityType === "STOCK_MOVEMENT", "capture did not create the stock adjustment");
   const afterCapturedAdjustment = await request<any>("/api/bootstrap", token);
-  check(afterCapturedAdjustment.materials.find((item: any) => item.id === fabricBefore.id).currentQuantity === fabricBefore.currentQuantity + 3, "captured stock adjustment did not update stock");
+  const fabricBeforeCut = afterCapturedAdjustment.materials.find((item: any) => item.id === fabricBefore.id);
+  check(fabricBeforeCut, "fabric fixture disappeared before cut");
+  check(fabricBeforeCut.currentQuantity === fabricBefore.currentQuantity + 3, "captured stock adjustment did not update stock");
 
   const order = await request<any>("/api/orders", token, {
     method: "POST",
@@ -107,9 +109,11 @@ async function main() {
   await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "READY_TO_CUT" }) });
   detail = await request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) });
   check(detail.status === "CUT", "cut transition failed");
+  check(Number(detail.items[0]?.actualFabricQty) === 1, "cut did not snapshot actual fabric quantity");
   const afterFirstCut = await request<any>("/api/bootstrap", token);
   const fabricAfterFirstCut = afterFirstCut.materials.find((item: any) => item.id === fabricBefore.id);
-  check(fabricAfterFirstCut.currentQuantity === fabricBefore.currentQuantity - 1, "cut did not discount exactly planned fabric");
+  check(fabricAfterFirstCut, "fabric fixture disappeared after cut");
+  check(fabricAfterFirstCut.currentQuantity === fabricBeforeCut.currentQuantity - 1, "cut did not discount exactly planned fabric");
   await request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) });
   const afterSecondCut = await request<any>("/api/bootstrap", token);
   check(afterSecondCut.materials.find((item: any) => item.id === fabricBefore.id).currentQuantity === fabricAfterFirstCut.currentQuantity, "second cut discounted stock again");
