@@ -3,7 +3,9 @@ import { parseCaptureMessage } from "./capture";
 
 const catalog = {
   customers: [{ id: "customer-1", name: "María Quispe", phone: "987654321" }],
-  products: [{ id: "product-1", name: "Vestido Margarita" }]
+  products: [{ id: "product-1", name: "Vestido Margarita" }],
+  materials: [{ id: "material-1", name: "Tela azul" }],
+  suppliers: [{ id: "supplier-1", name: "Textiles Andinos" }]
 };
 
 describe("capture parser", () => {
@@ -48,6 +50,49 @@ describe("capture parser", () => {
     const result = parseCaptureMessage("Gasto de 25 por movilidad pagado en Yape");
     expect(result.intent).toBe("NEW_EXPENSE");
     expect(result.payload.amount).toBe(25);
+    expect(result.missingFields).toEqual([]);
+  });
+
+  it("extracts a material purchase with supplier and payment method", () => {
+    const result = parseCaptureMessage("Compré 5 metros de tela azul por 120, proveedor Textiles Andinos, pagué con Yape", catalog, new Date(2026, 7, 19, 12));
+    expect(result.intent).toBe("NEW_PURCHASE");
+    expect(result.payload.materialId).toBe("material-1");
+    expect(result.payload.quantity).toBe(5);
+    expect(result.payload.amount).toBe(120);
+    expect(result.payload.supplierId).toBe("supplier-1");
+    expect(result.payload.paymentMethod).toBe("YAPE");
+    expect(result.missingFields).toEqual([]);
+  });
+
+  it("derives a purchase total from quantity and unit cost", () => {
+    const result = parseCaptureMessage("Compré 5 metros de tela azul, costo unitario 24, proveedor Textiles Andinos", catalog);
+    expect(result.intent).toBe("NEW_PURCHASE");
+    expect(result.payload.quantity).toBe(5);
+    expect(result.payload.unitCost).toBe(24);
+    expect(result.payload.amount).toBe(120);
+    expect(result.payload.supplierName).toBe("Textiles Andinos");
+    expect(result.missingFields).toEqual([]);
+  });
+
+  it("keeps an expense containing a material word as an expense", () => {
+    const result = parseCaptureMessage("Gasto de tela para muestra por 25 soles");
+    expect(result.intent).toBe("NEW_EXPENSE");
+    expect(result.payload.amount).toBe(25);
+  });
+
+  it("extracts expense category and leaves it pending for confirmation", () => {
+    const result = parseCaptureMessage("Gasto de 25 por movilidad pagado en Yape", catalog);
+    expect(result.intent).toBe("NEW_EXPENSE");
+    expect(result.payload.category).toBe("TRANSPORT");
+    expect(result.payload.paymentMethod).toBe("YAPE");
+    expect(result.payload.description).toContain("25");
+  });
+
+  it("recognizes a negative stock adjustment explicitly", () => {
+    const result = parseCaptureMessage("Ajuste de stock de tela azul -2 metros por merma", catalog);
+    expect(result.intent).toBe("STOCK_ADJUSTMENT");
+    expect(result.payload.materialId).toBe("material-1");
+    expect(result.payload.quantity).toBe(-2);
     expect(result.missingFields).toEqual([]);
   });
 });

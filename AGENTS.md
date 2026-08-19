@@ -30,6 +30,7 @@ La usuaria principal indicó que le da pereza ingresar información a mano. La s
 - Rollback preparado: `minierp_samiiwara_prod-app:rollback-dddb892-c6781cb3649c`.
 - La rama remota anterior `origin/codex/ux-less-data-entry` está en `49cb891` y fue preservada.
 - QA aislado y deploy controlado fueron completados por OpenClaw. No se hizo merge ni force-push sobre la rama anterior.
+- Desarrollo actual (no desplegado): rama local `codex/capture-operational-confirmation`, commit local `8cfa285cf0a080a3c29b5d7190121024e1b4f9b3`, con confirmación transaccional de compras, gastos y ajustes de stock; producción sigue intacta en `1a76b00f28ddd5676753133689e24405d0f953f0`.
 - Cloudflare Access: pendiente; no habilitado. No cambiar DNS, Tunnel ni exposición sin una tarea explícita.
 
 ## Stack y reglas técnicas
@@ -65,8 +66,8 @@ El núcleo interno de captura y el adaptador directo de Telegram ya están imple
 ### Estado de Chat-to-ERP v1
 
 - Implementado: parser determinista `rules-v1`, resolución contra el catálogo activo, tabla/migración `capture_drafts` (`0011_capture_drafts.sql`), borradores pendientes, idempotencia por `channel + sourceMessageId` y pantalla interna mobile-first.
-- Confirmación habilitada para `NEW_ORDER` y `NEW_CUSTOMER`, siempre con revisión humana. `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT` se reconocen y quedan como borrador, pero aún no mutan el dominio.
-- El flujo E2E ahora crea, duplica, confirma y verifica un pedido capturado por mensaje, incluyendo el adelanto.
+- Confirmación habilitada para `NEW_ORDER` y `NEW_CUSTOMER`, siempre con revisión humana. En la rama local `codex/capture-operational-confirmation` también se habilita, con revisión humana, `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; requiere la migración `0015_capture_operation_confirmation.sql` y QA aislado antes de desplegar.
+- El flujo E2E crea, duplica, confirma y verifica un pedido capturado por mensaje, incluyendo el adelanto; el candidato local añade cobertura de compra, gasto y ajuste de stock.
 - La implementación debe ser independiente del canal: la UI interna, Telegram directo y WhatsApp deben llamar al mismo núcleo; el webhook directo está desplegado, pero todavía no hay bot productivo configurado.
 - El endpoint `POST /api/integrations/telegram/capture` pertenece al adaptador provisional para OpenClaw y queda fuera del diseño objetivo. Ya no está conectado desde `secureFetch`; no cablearlo en producción. El endpoint directo es `POST /api/integrations/telegram/webhook`.
 - Hardening local agregado: contador transaccional por negocio para números de pedido, confirmación de borradores con bloqueo `FOR UPDATE`, idempotencia ante carreras de `sourceMessageId`, `confirmed_order_id`, validación de nombres de cliente, helpers monetarios centralizados, manejo global de errores, headers de seguridad, rate limit de escrituras y Docker con dependencias de producción.
@@ -92,7 +93,7 @@ El núcleo interno de captura y el adaptador directo de Telegram ya están imple
 2. **Estabilizar captura:** completado; concurrencia e idempotencia validadas en PostgreSQL.
 3. **Completar esquema y pruebas:** completado; migraciones `0012`, `0013` y `0014`, E2E y regresión validados.
 4. **Telegram piloto:** código y QA aislado completados; falta configurar secretos, registrar el webhook y realizar la prueba sintética con el bot real. OpenClaw no participa en runtime.
-5. **Completar operaciones:** habilitar con confirmación `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`, reutilizando servicios de dominio existentes.
+5. **Completar operaciones:** implementación local terminada para confirmar `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; falta QA PostgreSQL/concurrencia, revisión manual y despliegue controlado.
 6. **Seguimiento conversacional:** permitir que respuestas como “talla M” o “el precio es 280” actualicen el mismo borrador, con expiración y auditoría.
 7. **Entrada multimodal:** voz/transcripción primero; imágenes/OCR después de estabilizar texto.
 8. **WhatsApp oficial:** añadir otro adaptador al mismo contrato normalizado, sin duplicar lógica ni reutilizar sesiones personales de OpenClaw.
@@ -201,8 +202,9 @@ Nunca pedir a OpenClaw que “arregle” el código durante QA. Si encuentra un 
 - `docs/mvp-spec.md`: especificación funcional inicial.
 - `docs/deployment.md`: desarrollo, QA y producción.
 - `docs/qa.md`: criterios de validación.
-- `docs/qa-pendiente.md`: evidencia de QA/deploy y checklist post-deploy de Telegram.
+- `docs/qa-pendiente.md`: evidencia de QA/deploy, candidato de operaciones y checklist para el siguiente QA.
 - `docs/openclaw-qa-prompt.md`: prompt corto para QA/despliegue condicionado; reemplazar el SHA antes de enviarlo.
+- `docs/openclaw-qa-operations-prompt.md`: prompt corto para validar el candidato de operaciones y desplegarlo solo con PASS completo.
 - `src/domain/whatsapp.ts`: helpers actuales para enlaces y mensajes WhatsApp; no es todavía una integración API.
 - `src/client/capture-preferences.ts`: preferencias locales de captura.
 - `src/server/telegram-webhook.ts`: adaptador directo del webhook oficial de Telegram; `src/domain/telegram.ts` contiene el contrato de presentación.

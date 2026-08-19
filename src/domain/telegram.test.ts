@@ -49,4 +49,18 @@ describe("Telegram capture helpers", () => {
     expect(text).toContain("Adelanto: S/ 100.00");
     expect(text).toContain("¿Confirmas que guarde estos datos?");
   });
+
+  it("offers confirmation for complete operational drafts", () => {
+    const purchase = {
+      ...baseDraft,
+      intent: "NEW_PURCHASE" as const,
+      rawText: "Compré tela azul",
+      payload: { materialName: "Tela azul", quantity: 5, amount: 120, paymentMethod: "YAPE" as const },
+      missingFields: [],
+      ambiguousFields: []
+    };
+    expect(telegramDraftCanConfirm(purchase)).toBe(true);
+    expect(telegramDraftCanConfirm({ ...purchase, ambiguousFields: ["material"] })).toBe(false);
+    expect(telegramDraftText(purchase)).toContain("Costo total: S/ 120.00");
+  });
 });

@@ -42,6 +42,9 @@ export function isTelegramChatAllowed(chatId: string | number, allowedChatIds: S
 export function telegramDraftCanConfirm(draft: TelegramDraftSummary) {
   if (draft.status !== "PENDING") return false;
   if (draft.intent === "NEW_CUSTOMER") return draft.missingFields.length === 0;
+  if (["NEW_PURCHASE", "NEW_EXPENSE", "STOCK_ADJUSTMENT"].includes(draft.intent)) {
+    return draft.missingFields.length === 0 && draft.ambiguousFields.length === 0;
+  }
   if (draft.intent !== "NEW_ORDER") return false;
   return draft.missingFields.length === 0
     && !draft.ambiguousFields.includes("customer")
@@ -70,6 +73,31 @@ export function telegramDraftText(draft: TelegramDraftSummary) {
     );
   } else if (draft.intent === "NEW_CUSTOMER") {
     lines.push("", "Nombre: " + (payload.name ?? "no detectado"), "Teléfono: " + (payload.phone ?? "no detectado"));
+  } else if (draft.intent === "NEW_PURCHASE") {
+    lines.push(
+      "",
+      "Material: " + (payload.materialName ?? "no resuelto"),
+      "Cantidad: " + (payload.quantity ?? "no detectada"),
+      "Costo total: " + money(payload.amount),
+      ...(payload.unitCost != null ? ["Costo unitario: " + money(payload.unitCost)] : []),
+      "Proveedor: " + (payload.supplierName ?? "sin proveedor"),
+      "Método: " + (payload.paymentMethod ?? "no indicado")
+    );
+  } else if (draft.intent === "NEW_EXPENSE") {
+    lines.push(
+      "",
+      "Descripción: " + (payload.description ?? "no indicada"),
+      "Categoría: " + (payload.category ?? "OTHER"),
+      "Monto: " + money(payload.amount),
+      "Método: " + (payload.paymentMethod ?? "no indicado")
+    );
+  } else if (draft.intent === "STOCK_ADJUSTMENT") {
+    lines.push(
+      "",
+      "Material: " + (payload.materialName ?? "no resuelto"),
+      "Cantidad: " + (payload.quantity ?? "no detectada"),
+      "Motivo: " + (payload.description ?? "no indicado")
+    );
   } else if (payload.amount != null || payload.description) {
     lines.push("", "Descripción: " + (payload.description ?? "no indicada"), "Monto: " + money(payload.amount));
   }
@@ -79,7 +107,7 @@ export function telegramDraftText(draft: TelegramDraftSummary) {
 
   if (telegramDraftCanConfirm(draft)) {
     lines.push("", "¿Confirmas que guarde estos datos?");
-  } else if (draft.intent !== "NEW_ORDER" && draft.intent !== "NEW_CUSTOMER") {
+  } else if (draft.intent !== "NEW_ORDER" && draft.intent !== "NEW_CUSTOMER" && draft.missingFields.length === 0) {
     lines.push("", "Esta intención todavía queda como borrador; aún no se guarda en el negocio.");
   } else if (draft.missingFields.length) {
     lines.push("", "Envía otro mensaje con los datos faltantes. Este borrador seguirá pendiente.");
@@ -92,7 +120,7 @@ export function telegramHelpText() {
   return [
     "Captura Samiiwara",
     "",
-    "Envíame un pedido o un cliente escrito de forma natural.",
+    "Envíame un pedido, compra, gasto o ajuste escrito de forma natural.",
     "Primero te mostraré un borrador; solo se guarda cuando confirmes.",
     "",
     "También puedes usar los botones Confirmar y Descartar."

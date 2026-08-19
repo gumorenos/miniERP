@@ -5,6 +5,7 @@ import type { Bootstrap, Customer, OrderDetail, Product } from "./api";
 
 const sizes = ["S", "M", "L", "XL", "XXL"] as const;
 const methods = [["YAPE", "Yape"], ["PLIN", "Plin"], ["CASH", "Efectivo"], ["BANK_TRANSFER", "Transferencia"], ["OTHER", "Otro"]] as const;
+const expenseCategories = [["EMBROIDERY", "Bordado"], ["TRANSPORT", "Transporte"], ["PACKAGING", "Empaque"], ["TOOLS", "Herramientas"], ["SERVICES", "Servicios"], ["MARKETING", "Marketing"], ["OTHER", "Otro"]] as const;
 
 const fieldLabels: Record<string, string> = {
   customer: "cliente",
@@ -12,7 +13,12 @@ const fieldLabels: Record<string, string> = {
   size: "talla",
   color: "color",
   promisedDeliveryDate: "fecha de entrega",
-  name: "nombre"
+  name: "nombre",
+  material: "material",
+  quantity: "cantidad",
+  amount: "importe",
+  description: "motivo o descripción",
+  supplier: "proveedor"
 };
 
 function money(value: number | undefined) {
@@ -38,6 +44,16 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
   const [delivery, setDelivery] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [materialId, setMaterialId] = useState("");
+  const [supplierId, setSupplierId] = useState("");
+  const [operationDate, setOperationDate] = useState("");
+  const [operationQuantity, setOperationQuantity] = useState("");
+  const [operationAmount, setOperationAmount] = useState("");
+  const [operationUnitCost, setOperationUnitCost] = useState("");
+  const [operationPaymentMethod, setOperationPaymentMethod] = useState("YAPE");
+  const [operationCategory, setOperationCategory] = useState("OTHER");
+  const [operationDescription, setOperationDescription] = useState("");
+  const [operationOrderId, setOperationOrderId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -58,6 +74,16 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
     setDelivery(next.payload.promisedDeliveryDate ?? "");
     setCustomerName(next.payload.name ?? next.payload.customerName ?? "");
     setCustomerPhone(next.payload.phone ?? next.payload.customerPhone ?? "");
+    setMaterialId(next.payload.materialId ?? "");
+    setSupplierId(next.payload.supplierId ?? "");
+    setOperationDate(next.payload.operationDate ?? "");
+    setOperationQuantity(next.payload.quantity == null ? "" : String(next.payload.quantity));
+    setOperationAmount(next.payload.amount == null ? "" : String(next.payload.amount));
+    setOperationUnitCost(next.payload.unitCost == null ? "" : String(next.payload.unitCost));
+    setOperationPaymentMethod(next.payload.paymentMethod ?? "YAPE");
+    setOperationCategory(next.payload.category ?? "OTHER");
+    setOperationDescription(next.payload.description ?? "");
+    setOperationOrderId(next.payload.orderId ?? "");
   };
 
   useEffect(() => {
@@ -80,7 +106,7 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
     if (!draft) return;
     setError(""); setSuccess(""); setBusy(true);
     try {
-      const result = await captureApi.confirmDraft(draft.id, draft.intent === "NEW_ORDER" ? {
+      const payload = draft.intent === "NEW_ORDER" ? {
         ...draft.payload,
         customerId: customerId || undefined,
         productId: productId || undefined,
@@ -90,17 +116,43 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
         advanceAmount: Number(advance || 0),
         advanceMethod: method as "YAPE" | "PLIN" | "CASH" | "BANK_TRANSFER" | "OTHER",
         promisedDeliveryDate: delivery || null
-      } : {
+      } : draft.intent === "NEW_CUSTOMER" ? {
         ...draft.payload,
         name: customerName.trim(),
         phone: customerPhone.trim() || undefined
-      });
+      } : draft.intent === "NEW_PURCHASE" ? {
+        ...draft.payload,
+        materialId: materialId || undefined,
+        supplierId: supplierId || undefined,
+        quantity: operationQuantity ? Number(operationQuantity) : undefined,
+        amount: operationAmount ? Number(operationAmount) : undefined,
+        unitCost: operationUnitCost ? Number(operationUnitCost) : undefined,
+        operationDate: operationDate || null,
+        paymentMethod: operationPaymentMethod as "YAPE" | "PLIN" | "CASH" | "BANK_TRANSFER" | "OTHER",
+        description: operationDescription.trim()
+      } : draft.intent === "NEW_EXPENSE" ? {
+        ...draft.payload,
+        amount: operationAmount ? Number(operationAmount) : undefined,
+        operationDate: operationDate || null,
+        category: operationCategory,
+        paymentMethod: operationPaymentMethod as "YAPE" | "PLIN" | "CASH" | "BANK_TRANSFER" | "OTHER",
+        description: operationDescription.trim(),
+        orderId: operationOrderId || null
+      } : {
+        ...draft.payload,
+        materialId: materialId || undefined,
+        quantity: operationQuantity ? Number(operationQuantity) : undefined,
+        unitCost: operationUnitCost ? Number(operationUnitCost) : undefined,
+        operationDate: operationDate || null,
+        description: operationDescription.trim()
+      };
+      const result = await captureApi.confirmDraft(draft.id, payload);
       if (result.order) {
         await onChanged();
         const order = await fetchOrder(result.order.id);
         await onCreated(order);
       } else {
-        setSuccess("Cliente creado. Ya puedes continuar con el siguiente registro.");
+        setSuccess(result.customer ? "Cliente creado. Ya puedes continuar con el siguiente registro." : "Operación registrada. Ya puedes continuar con el siguiente registro.");
         await onChanged();
         setDraft(null);
         setRecentDrafts((current) => current.filter((item) => item.id !== draft.id));
@@ -129,7 +181,7 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
         <button type="button" className="ghost" onClick={onCancel}>Volver</button>
       </div>
       <form className="capture-message-form" onSubmit={analyze}>
-        <label>Mensaje del pedido, cliente o gasto
+        <label>Mensaje del pedido, compra, gasto o ajuste
           <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} placeholder="María quiere vestido Margarita azul talla M, dejó 100 por Yape y lo quiere para el 8." required />
         </label>
         <div className="capture-footer"><p className="helper">La versión inicial usa reglas auditables; la IA se podrá conectar después como otro intérprete.</p><button disabled={busy || message.trim().length < 2}>{busy ? "Analizando..." : "Analizar mensaje"}</button></div>
@@ -148,10 +200,69 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
 
       {draft.intent === "NEW_ORDER" && <OrderDraftFields data={data} draft={draft} customerId={customerId} setCustomerId={setCustomerId} productId={productId} setProductId={setProductId} size={size} setSize={setSize} color={color} setColor={setColor} price={price} setPrice={setPrice} advance={advance} setAdvance={setAdvance} method={method} setMethod={setMethod} delivery={delivery} setDelivery={setDelivery} product={product} />}
       {draft.intent === "NEW_CUSTOMER" && <div className="capture-grid"><label>Nombre *<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label><label>Teléfono<input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></label></div>}
-      {!["NEW_ORDER", "NEW_CUSTOMER"].includes(draft.intent) && <p className="muted">La intención fue detectada, pero la confirmación de este tipo de operación se habilitará en el siguiente incremento. No se ha creado ningún registro.</p>}
-
-      <div className="capture-footer"><p className="helper">Nada se guarda en el negocio hasta confirmar.</p><div className="actions capture-actions"><button type="button" className="ghost danger" onClick={reject} disabled={busy}>Descartar</button>{["NEW_ORDER", "NEW_CUSTOMER"].includes(draft.intent) && <button type="button" onClick={confirm} disabled={busy || (draft.intent === "NEW_ORDER" ? !customerId || !productId || !color.trim() : !customerName.trim())}>{busy ? "Guardando..." : "Confirmar y guardar"}</button>}</div></div>
+      {draft.intent === "NEW_PURCHASE" && <OperationalDraftFields intent="NEW_PURCHASE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "NEW_EXPENSE" && <OperationalDraftFields intent="NEW_EXPENSE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "STOCK_ADJUSTMENT" && <OperationalDraftFields intent="STOCK_ADJUSTMENT" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "UNKNOWN" && <p className="muted">No pude identificar una operación segura. Prueba indicando pedido, compra, gasto o ajuste de stock.</p>}
+      <div className="capture-footer"><p className="helper">Nada se guarda en el negocio hasta confirmar.</p><div className="actions capture-actions"><button type="button" className="ghost danger" onClick={reject} disabled={busy}>Descartar</button>{draft.intent !== "UNKNOWN" && <button type="button" onClick={confirm} disabled={busy || !draftReady(draft.intent, { customerId, productId, color, customerName, materialId, operationQuantity, operationAmount, operationUnitCost, operationDescription })}>{busy ? "Guardando..." : "Confirmar y guardar"}</button>}</div></div>
     </section>}
+  </div>;
+}
+
+function draftReady(intent: CaptureDraft["intent"], fields: { customerId: string; productId: string; color: string; customerName: string; materialId: string; operationQuantity: string; operationAmount: string; operationUnitCost: string; operationDescription: string }) {
+  if (intent === "NEW_ORDER") return Boolean(fields.customerId && fields.productId && fields.color.trim());
+  if (intent === "NEW_CUSTOMER") return fields.customerName.trim().length >= 2;
+  if (intent === "NEW_PURCHASE") return Boolean(fields.materialId && Number(fields.operationQuantity) > 0 && (Number(fields.operationAmount) > 0 || Number(fields.operationUnitCost) > 0));
+  if (intent === "NEW_EXPENSE") return Boolean(Number(fields.operationAmount) > 0 && fields.operationDescription.trim().length >= 2);
+  if (intent === "STOCK_ADJUSTMENT") return Boolean(fields.materialId && Math.abs(Number(fields.operationQuantity)) > 0.0001 && fields.operationDescription.trim().length >= 2);
+  return false;
+}
+
+function OperationalDraftFields({ intent, data, materialId, setMaterialId, supplierId, setSupplierId, operationDate, setOperationDate, quantity, setQuantity, amount, setAmount, unitCost, setUnitCost, paymentMethod, setPaymentMethod, category, setCategory, description, setDescription, orderId, setOrderId }: {
+  intent: "NEW_PURCHASE" | "NEW_EXPENSE" | "STOCK_ADJUSTMENT";
+  data: Bootstrap;
+  materialId: string;
+  setMaterialId: (value: string) => void;
+  supplierId: string;
+  setSupplierId: (value: string) => void;
+  operationDate: string;
+  setOperationDate: (value: string) => void;
+  quantity: string;
+  setQuantity: (value: string) => void;
+  amount: string;
+  setAmount: (value: string) => void;
+  unitCost: string;
+  setUnitCost: (value: string) => void;
+  paymentMethod: string;
+  setPaymentMethod: (value: string) => void;
+  category: string;
+  setCategory: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
+  orderId: string;
+  setOrderId: (value: string) => void;
+}) {
+  return <div className="capture-grid">
+    {intent !== "NEW_EXPENSE" && <label>Material *<select value={materialId} onChange={(event) => setMaterialId(event.target.value)}><option value="">Selecciona...</option>{data.materials.map((item) => <option key={item.id} value={item.id}>{item.name}{item.color ? " · " + item.color : ""}</option>)}</select></label>}
+    {intent === "NEW_PURCHASE" && <>
+      <label>Fecha de compra<input type="date" value={operationDate} onChange={(event) => setOperationDate(event.target.value)} /></label>
+      <label>Proveedor<select value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Sin proveedor</option>{data.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Cantidad *<input type="number" min="0.001" step="0.001" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
+      <label>Costo total *<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>Costo unitario opcional<input type="number" min="0" step="0.01" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} /></label>
+      <label>Método<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>{methods.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Notas<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+    </>}
+    {intent === "NEW_EXPENSE" && <>
+      <label>Fecha del gasto<input type="date" value={operationDate} onChange={(event) => setOperationDate(event.target.value)} /></label>
+      <label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}>{expenseCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Descripción *<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      <label>Importe *<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>Método<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>{methods.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Pedido asociado opcional<select value={orderId} onChange={(event) => setOrderId(event.target.value)}><option value="">Ninguno</option>{data.orders.map((item) => <option key={item.id} value={item.id}>{item.orderNumber} · {item.customerName}</option>)}</select></label>
+    </>}
+    {intent === "STOCK_ADJUSTMENT" && <>
+      <label>Cantidad (+ entrada / − salida) *<input type="number" step="0.001" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
+      <label>Costo unitario opcional<input type="number" min="0" step="0.01" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} /></label>
+      <label>Motivo *<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+    </>}
   </div>;
 }
 

@@ -10,6 +10,7 @@ export type CaptureCatalog = {
   customers?: Array<{ id: string; name: string; phone?: string | null }>;
   products?: Array<{ id: string; name: string }>;
   materials?: Array<{ id: string; name: string }>;
+  suppliers?: Array<{ id: string; name: string }>;
 };
 
 export type CapturePayload = {
@@ -20,15 +21,22 @@ export type CapturePayload = {
   productName?: string;
   materialId?: string;
   materialName?: string;
+  supplierId?: string;
+  supplierName?: string;
   name?: string;
   phone?: string;
   size?: Size;
   color?: string;
   quantity?: number;
+  unitCost?: number;
   agreedTotalPrice?: number;
   advanceAmount?: number;
   advanceMethod?: PaymentMethod;
+  paymentMethod?: PaymentMethod;
   promisedDeliveryDate?: string | null;
+  operationDate?: string | null;
+  category?: string;
+  orderId?: string | null;
   description?: string;
   amount?: number;
   deliveryText?: string;
@@ -75,6 +83,63 @@ function parseMoney(value: string) {
 function findAmount(text: string, pattern: RegExp) {
   const match = text.match(pattern);
   return match?.[1] ? parseMoney(match[1]) : undefined;
+}
+
+function findQuantity(text: string, signed = false) {
+  const sign = signed ? "[+-]?" : "";
+  const unit = "(?:metros?|mts?\\.?|unidades?|uds?\\.?|rollos?|carretes?|kg|kilos?)";
+  const withUnit = text.match(new RegExp("(" + sign + "\\d+(?:[.,]\\d{1,3})?)\\s*" + unit + "\\b", "i"));
+  if (withUnit?.[1]) return parseMoney(withUnit[1]);
+  const explicit = text.match(new RegExp("(?:cantidad|ajuste|stock|inventario)\\s*(?:de|del)?\\s*(" + sign + "\\d+(?:[.,]\\d{1,3})?)", "i"));
+  return explicit?.[1] ? parseMoney(explicit[1]) : undefined;
+}
+
+function findUnitCost(text: string) {
+  return findAmount(text, /(?:costo\s+unitario|precio\s+unitario)\s*(?:de|:)?\s*(?:s\/?\.?\s*)?(\d+(?:[.,]\d{1,2})?)/i);
+}
+
+function findOperationDate(text: string, now: Date) {
+  const iso = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (iso?.[1]) return iso[1];
+  const slash = text.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}))?\b/);
+  if (slash?.[1] && slash[2]) {
+    const year = Number(slash[3] ?? now.getFullYear());
+    return year + "-" + String(Number(slash[2])).padStart(2, "0") + "-" + String(Number(slash[1])).padStart(2, "0");
+  }
+  if (/\bhoy\b/i.test(text)) return now.toISOString().slice(0, 10);
+  if (/\bayer\b/i.test(text)) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday.toISOString().slice(0, 10);
+  }
+  return undefined;
+}
+
+function extractMaterialName(text: string) {
+  const match = text.match(/(?:comp(?:ra|ré)|adquir[ií]|material|insumo|ajuste(?:\s+de\s+stock)?|inventario|stock)\s*(?:de|del|:)?\s*(?:[+-]?\d+(?:[.,]\d+)?\s*(?:metros?|unidades?|uds?\.?|rollos?|carretes?|kg|kilos?)?\s*(?:de\s*)?)?([^,:]+?)(?=\s+(?:por|a|con|pag|para|porque|motivo|cantidad|costo)\b|\s*[:,-]?\s*[+-]?\d+(?:[.,]\d+)?\s*(?:metros?|unidades?|uds?\.?|rollos?|carretes?|kg|kilos?)?\b|$)/i);
+  return match?.[1] ? cleanName(match[1]) : undefined;
+}
+
+function extractSupplierName(text: string) {
+  const match = text.match(/\bproveedor(?:a)?\s+(?:es\s+|:)?([^,.;]+?)(?=\s*(?:[,.;]|\b(?:por|con|pag|para)\b|$))/i);
+  return match?.[1] ? cleanName(match[1]) : undefined;
+}
+
+function expenseCategory(text: string) {
+  const normalized = normalizeCaptureText(text);
+  if (/bordado|bordador/.test(normalized)) return "EMBROIDERY";
+  if (/movilidad|taxi|transporte|pasaje|delivery/.test(normalized)) return "TRANSPORT";
+  if (/empaque|bolsa|caja/.test(normalized)) return "PACKAGING";
+  if (/herramienta|máquina|maquina|reparación|reparacion/.test(normalized)) return "TOOLS";
+  if (/servicio|internet|luz|agua|alquiler/.test(normalized)) return "SERVICES";
+  if (/publicidad|marketing|anuncio/.test(normalized)) return "MARKETING";
+  return "OTHER";
+}
+
+function operationDescription(text: string, intent: CaptureIntent) {
+  const clean = text.replace(/^(?:nuevo\s+)?(?:gasto|compra|compré|compre|ajuste(?:\s+de\s+stock)?)\s*(?:de|:)?\s*/i, "").trim();
+  if (intent === "NEW_EXPENSE") return cleanName(clean) || "Gasto registrado desde captura";
+  return cleanName(text);
 }
 
 function findKnownMatch<T extends { id: string; name: string }>(text: string, candidates: T[] | undefined) {
@@ -151,9 +216,10 @@ function classify(text: string): CaptureIntent {
   const normalized = normalizeCaptureText(text);
   if (/pedido|quiere|pide|encarga|talla|vestido|falda|casaca|prenda/.test(normalized)) return "NEW_ORDER";
   if (/nuevo cliente|crear cliente|cliente nuevo|guardar contacto/.test(normalized)) return "NEW_CUSTOMER";
-  if (/compr[eé]|compra|tela|material|insumo/.test(normalized)) return "NEW_PURCHASE";
-  if (/gasto|movilidad|taxi|delivery|pagu[eé]/.test(normalized)) return "NEW_EXPENSE";
   if (/ajuste|stock|inventario/.test(normalized)) return "STOCK_ADJUSTMENT";
+  if (/gasto|movilidad|taxi|delivery/.test(normalized)) return "NEW_EXPENSE";
+  if (/compr[eé]|compra|tela|material|insumo/.test(normalized)) return "NEW_PURCHASE";
+  if (/pagu[eé]/.test(normalized)) return "NEW_EXPENSE";
   return "UNKNOWN";
 }
 
@@ -202,6 +268,81 @@ function parseOrder(text: string, catalog: CaptureCatalog | undefined, now: Date
   };
 }
 
+function parseOperational(text: string, intent: CaptureIntent, catalog: CaptureCatalog | undefined, now: Date): CaptureParseResult {
+  const materialMatch = findKnownMatch(text, catalog?.materials);
+  const supplierMatch = findKnownMatch(text, catalog?.suppliers);
+  const materialName = materialMatch.match?.name ?? extractMaterialName(text);
+  const supplierName = supplierMatch.match?.name ?? extractSupplierName(text);
+  const operationDate = findOperationDate(text, now);
+  const paymentMethod = findPaymentMethod(text);
+  const description = operationDescription(text, intent);
+
+  if (intent === "NEW_PURCHASE") {
+    const quantity = findQuantity(text);
+    const unitCost = findUnitCost(text);
+    const detectedAmount = findAmount(text, /(?:total|costo|por|pagu[eé]|pagado)\s*(?:de\s*)?(?:s\/?\.?\s*)?(\d+(?:[.,]\d{1,2})?)/i);
+    const amount = detectedAmount ?? (quantity != null && unitCost != null ? quantity * unitCost : undefined);
+    const payload: CapturePayload = {
+      materialId: materialMatch.match?.id,
+      materialName,
+      supplierId: supplierMatch.match?.id,
+      supplierName,
+      quantity,
+      amount,
+      unitCost,
+      paymentMethod,
+      operationDate: operationDate ?? null,
+      description
+    };
+    return {
+      intent,
+      parserVersion: "rules-v1",
+      payload,
+      missingFields: [!materialMatch.match ? "material" : "", quantity == null ? "quantity" : "", amount == null ? "amount" : ""].filter(Boolean),
+      ambiguousFields: [materialMatch.ambiguous ? "material" : "", supplierMatch.ambiguous ? "supplier" : ""].filter(Boolean),
+      confidence: materialMatch.ambiguous ? "low" : (!materialMatch.match || quantity == null || amount == null) ? "medium" : "high"
+    };
+  }
+
+  if (intent === "STOCK_ADJUSTMENT") {
+    let quantity = findQuantity(text, true);
+    if (quantity != null && /\b(?:merma|p[eé]rdida|salida|consumo|retirar|retir[oó])\b/i.test(text) && quantity > 0) quantity = -quantity;
+    const payload: CapturePayload = {
+      materialId: materialMatch.match?.id,
+      materialName,
+      quantity,
+      unitCost: findUnitCost(text),
+      operationDate: operationDate ?? null,
+      description
+    };
+    return {
+      intent,
+      parserVersion: "rules-v1",
+      payload,
+      missingFields: [!materialMatch.match ? "material" : "", quantity == null ? "quantity" : "", description.length < 2 ? "description" : ""].filter(Boolean),
+      ambiguousFields: materialMatch.ambiguous ? ["material"] : [],
+      confidence: materialMatch.ambiguous ? "low" : (!materialMatch.match || quantity == null) ? "medium" : "high"
+    };
+  }
+
+  const amount = findAmount(text, /(?:s\/?\.?|de|por|total|gasto|pago|pagu[eé])\s*(\d+(?:[.,]\d{1,2})?)/i);
+  const payload: CapturePayload = {
+    amount,
+    description,
+    category: expenseCategory(text),
+    paymentMethod,
+    operationDate: operationDate ?? null
+  };
+  return {
+    intent,
+    parserVersion: "rules-v1",
+    payload,
+    missingFields: [amount == null ? "amount" : "", description.length < 2 ? "description" : ""].filter(Boolean),
+    ambiguousFields: [],
+    confidence: amount == null ? "medium" : "high"
+  };
+}
+
 export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now = new Date()): CaptureParseResult {
   const cleanText = text.trim();
   const intent = classify(cleanText);
@@ -221,15 +362,16 @@ export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now 
     };
   }
 
-  const amount = findAmount(cleanText, /(?:s\/\.?|de|por|total|gasto|pago)\s*(\d+(?:[.,]\d{1,2})?)/i);
-  const description = cleanText.replace(/^(?:nuevo\s+)?(?:gasto|compra|ajuste)\s*(?:de|:)?/i, "").trim() || undefined;
+  if (["NEW_PURCHASE", "NEW_EXPENSE", "STOCK_ADJUSTMENT"].includes(intent)) {
+    return parseOperational(cleanText, intent, catalog, now);
+  }
   return {
     intent,
     parserVersion: "rules-v1",
-    payload: { amount, description },
-    missingFields: intent === "UNKNOWN" ? ["intent"] : amount == null ? ["amount"] : [],
+    payload: {},
+    missingFields: ["intent"],
     ambiguousFields: [],
-    confidence: intent === "UNKNOWN" ? "low" : amount == null ? "medium" : "high"
+    confidence: "low"
   };
 }
 

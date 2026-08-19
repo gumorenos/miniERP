@@ -252,6 +252,8 @@ export const captureDrafts = pgTable(
     ambiguousFieldsJson: text("ambiguous_fields_json").notNull().default("[]"),
     parserVersion: text("parser_version").notNull(),
     confirmedOrderId: uuid("confirmed_order_id").references(() => orders.id),
+    confirmedEntityType: text("confirmed_entity_type"),
+    confirmedEntityId: uuid("confirmed_entity_id"),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
     ...timestamps

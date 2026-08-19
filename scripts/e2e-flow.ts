@@ -53,6 +53,47 @@ async function main() {
   check(capturedOrder.draft.status === "CONFIRMED", "capture draft was not confirmed");
   check(capturedOrder.order?.status === "ORDER_RECEIVED", "capture did not create the order");
   check(capturedOrder.order?.payments?.length === 1 || capturedOrder.order?.financials?.totalPaid === 100, "capture did not preserve the advance");
+
+  const purchaseMessage = `Compré 2 metros de ${fabricBefore.name} por 48`;
+  const purchaseCapture = await request<any>("/api/capture/drafts", token, {
+    method: "POST",
+    body: JSON.stringify({ channel: "INTERNAL", sourceMessageId: "e2e-purchase-" + Date.now(), rawText: purchaseMessage })
+  });
+  check(purchaseCapture.draft.intent === "NEW_PURCHASE", "capture did not identify a new purchase");
+  check(purchaseCapture.draft.missingFields.length === 0, "purchase capture left required fields missing");
+  const capturedPurchase = await request<any>(`/api/capture/drafts/${purchaseCapture.draft.id}/confirm`, token, {
+    method: "POST",
+    body: JSON.stringify({ payload: purchaseCapture.draft.payload })
+  });
+  check(capturedPurchase.draft.status === "CONFIRMED" && capturedPurchase.confirmed?.entityType === "PURCHASE", "capture did not create the purchase");
+  const afterCapturedPurchase = await request<any>("/api/bootstrap", token);
+  const fabricAfterPurchase = afterCapturedPurchase.materials.find((item: any) => item.id === fabricBefore.id);
+  check(fabricAfterPurchase.currentQuantity === fabricBefore.currentQuantity + 2, "captured purchase did not add stock");
+
+  const expenseCapture = await request<any>("/api/capture/drafts", token, {
+    method: "POST",
+    body: JSON.stringify({ channel: "INTERNAL", sourceMessageId: "e2e-expense-" + Date.now(), rawText: "Gasto de 15 por movilidad pagado en Yape" })
+  });
+  check(expenseCapture.draft.intent === "NEW_EXPENSE" && expenseCapture.draft.missingFields.length === 0, "capture did not identify a complete expense");
+  const capturedExpense = await request<any>(`/api/capture/drafts/${expenseCapture.draft.id}/confirm`, token, {
+    method: "POST",
+    body: JSON.stringify({ payload: expenseCapture.draft.payload })
+  });
+  check(capturedExpense.draft.status === "CONFIRMED" && capturedExpense.confirmed?.entityType === "EXPENSE", "capture did not create the expense");
+
+  const adjustmentCapture = await request<any>("/api/capture/drafts", token, {
+    method: "POST",
+    body: JSON.stringify({ channel: "INTERNAL", sourceMessageId: "e2e-adjustment-" + Date.now(), rawText: `Ajuste de stock de ${fabricBefore.name} +1 metro por conteo` })
+  });
+  check(adjustmentCapture.draft.intent === "STOCK_ADJUSTMENT" && adjustmentCapture.draft.missingFields.length === 0, "capture did not identify a complete stock adjustment");
+  const capturedAdjustment = await request<any>(`/api/capture/drafts/${adjustmentCapture.draft.id}/confirm`, token, {
+    method: "POST",
+    body: JSON.stringify({ payload: adjustmentCapture.draft.payload })
+  });
+  check(capturedAdjustment.draft.status === "CONFIRMED" && capturedAdjustment.confirmed?.entityType === "STOCK_MOVEMENT", "capture did not create the stock adjustment");
+  const afterCapturedAdjustment = await request<any>("/api/bootstrap", token);
+  check(afterCapturedAdjustment.materials.find((item: any) => item.id === fabricBefore.id).currentQuantity === fabricBefore.currentQuantity + 3, "captured stock adjustment did not update stock");
+
   const order = await request<any>("/api/orders", token, {
     method: "POST",
     body: JSON.stringify({ customerId: customer.id, productId: product.id, size: "S", color: "Negro", quantity: 1, agreedTotalPrice: 320, promisedDeliveryDate: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) })

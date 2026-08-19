@@ -12,6 +12,9 @@ export type CaptureDraft = {
   missingFields: string[];
   ambiguousFields: string[];
   parserVersion: string;
+  confirmedOrderId?: string | null;
+  confirmedEntityType?: string | null;
+  confirmedEntityId?: string | null;
   createdAt: string;
   updatedAt: string;
   confirmedAt?: string | null;

@@ -17,6 +17,27 @@
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
+## Candidato de desarrollo siguiente: operaciones conversacionales
+
+- Rama local: `codex/capture-operational-confirmation`.
+- Commit local exacto: `8cfa285cf0a080a3c29b5d7190121024e1b4f9b3`.
+- Estado: implementado localmente, no desplegado y no aprobado todavía para producción.
+- Producción permanece en `1a76b00f28ddd5676753133689e24405d0f953f0`; no fue tocada durante este incremento.
+- Validación local directa: ESLint PASS, TypeScript PASS, 44 pruebas PASS en 11 archivos, build Vite PASS y `git diff --check` PASS.
+- Cambios funcionales: confirmación humana y transaccional de `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; resolución de materiales/proveedores; costo unitario con total derivado; persistencia de entidad confirmada; migración `0015_capture_operation_confirmation.sql`.
+- El E2E `scripts/e2e-flow.ts` incorpora escenarios para las tres operaciones. Aún requiere una base PostgreSQL efímera para ejecutarse.
+
+### Gates pendientes para este candidato
+
+- [ ] Aplicar la migración `0015_capture_operation_confirmation.sql` desde cero y sobre una copia de datos.
+- [ ] Ejecutar `npm run qa` en el worktree aislado; la validación local equivalente usó binarios instalados directamente porque el wrapper `npm run` pidió aprobación de red.
+- [ ] Ejecutar `npm run test:e2e` y comprobar compra, gasto y ajuste de stock.
+- [ ] Comprobar transacción atómica: si falla la confirmación, no queda compra/línea/movimiento o gasto huérfano.
+- [ ] Comprobar idempotencia: dos confirmaciones concurrentes del mismo borrador producen una sola operación.
+- [ ] Comprobar que un ajuste de salida no permite stock negativo bajo concurrencia.
+- [ ] Revisar callbacks Telegram con estos tres tipos de borrador; no requiere credenciales reales para el primer gate si se usan dependencias simuladas.
+- [ ] Solo con todos los gates en PASS: backup, migraciones, health, smoke y deploy del SHA exacto. No desplegar desde esta rama sin aprobación explícita del reporte QA.
+
 ## QA aislado completado por OpenClaw
 
 - `npm ci`: PASS, 199 paquetes.
@@ -49,7 +70,7 @@ Los gates P0/P1 del candidato están cerrados. Queda pendiente activar el canal 
 - [ ] Probar con datos sintéticos: mensaje, borrador, botones confirmar/rechazar y callbacks.
 - [ ] Repetir un update y confirmar que no duplica el borrador ni el pedido.
 - [ ] Verificar `sendMessage` y `answerCallbackQuery` con el bot real.
-- [ ] Confirmar el flujo con la usuaria y definir el siguiente incremento: compras, gastos y ajustes.
+- [ ] Confirmar el flujo con la usuaria y, después de aprobar el candidato de operaciones, definir el siguiente incremento: seguimiento conversacional de borradores.
 
 El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el endpoint legacy de OpenClaw ni enviarle tokens o datos de negocio.
 
