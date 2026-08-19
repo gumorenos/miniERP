@@ -7,7 +7,7 @@ QA + DEPLOY CONDICIONADO — miniERP
 
 Repo: gumorenos/miniERP
 Rama: codex/capture-operational-confirmation
-SHA exacto: 8cfa285cf0a080a3c29b5d7190121024e1b4f9b3
+SHA exacto: df51a70489dcfc4a740487fe985f302bef8d799e
 Producción: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
