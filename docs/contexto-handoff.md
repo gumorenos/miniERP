@@ -36,17 +36,23 @@
 - `git diff --check`: PASS.
 - No se pudo ejecutar Docker/PostgreSQL E2E localmente porque Docker no está disponible en este entorno.
 
-## Próximo paso obligatorio: OpenClaw
+## Estado de QA y deploy del candidato
 
-Ejecutar el prompt de `docs/openclaw-qa-operations-prompt.md` o el compacto `docs/openclaw-qa-prompt.md`, fijado al SHA `8da2c1b...`.
+OpenClaw verificó el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`:
 
-Gates mínimos:
+- QA aislado: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
+- Deploy del candidato: intentado, pero revertido porque el smoke autenticado devolvió HTTP 400.
+- Smoke no autenticado y health: PASS.
+- Producción quedó correctamente en `de5d3f6f5f088421fee8f3030652808076965656`.
+- Rollback: PASS.
+- Backup: `/home/ubuntu/backups/minierp-samiiwara/postgres-pre-8da2c1b-20260821T150252Z.sql.gz`.
+- Imagen rollback: `minierp_samiiwara_prod-app:rollback-de5d3f6-20260821T150252Z`.
 
-1. Verificar que el SHA exista, hacer checkout detached y comprobar que sea ancestro de la rama.
-2. En worktree y PostgreSQL aislados: `npm ci`, `npm run qa`, migraciones desde cero y sobre copia, `npm run test:e2e`, concurrencia/idempotencia, callbacks Telegram simulados y `docker build`.
-3. Verificar cookies HttpOnly, ausencia de token en localStorage, headers de seguridad, allowlist de usuario Telegram y ausencia de integración runtime con OpenClaw.
-4. Si cualquier gate falla: STOP y no desplegar.
-5. Solo con todo PASS: backup, etiqueta de rollback, deploy exacto de `8da2c1b...`, migraciones, healthcheck y smoke. Si falla deploy/smoke, rollback controlado.
+## Próximo paso obligatorio
+
+No cambiar código todavía. Capturar el cuerpo exacto del HTTP 400 y validar las credenciales/payload del smoke. En este código, contraseña incorrecta produce 401; HTTP 400 indica correo inválido/vacío, contraseña ausente o payload inválido.
+
+Después de contar con credenciales piloto válidas o ejecutar un reset controlado del usuario mediante el servicio one-shot `bootstrap-user`, repetir QA/deploy condicionado del SHA exacto `8da2c1b...`. No inventar credenciales ni dejar bootstrap secrets permanentes en `.env.production`.
 
 ## Después de un QA/deploy PASS
 
