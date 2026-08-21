@@ -1,23 +1,33 @@
 # Prompt compacto para OpenClaw
 
-El candidato ya publicado y desplegado es `1a76b00f28ddd5676753133689e24405d0f953f0`. Si se repite el flujo con otro candidato, reemplazarlo por el SHA exacto; si no existe en el remoto, detenerse sin fallback.
+Candidato de código para QA: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. Producción actual: `de5d3f6f5f088421fee8f3030652808076965656`. OpenClaw solo hace QA, backup y deploy; no modifica código ni forma parte del runtime.
 
 ```text
 QA + DEPLOY CONDICIONADO — miniERP
 
 Repo: gumorenos/miniERP
-Rama: codex/telegram-direct-candidate
-Candidato exacto: 1a76b00f28ddd5676753133689e24405d0f953f0
+Rama: codex/capture-operational-confirmation
+SHA exacto: 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
 Producción: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
-OpenClaw solo hará QA y despliegue. No cambies código, no hagas commits, merge ni fixes automáticos. No uses producción para pruebas.
+No cambies código, no hagas commits/merge/fixes y no integres OpenClaw al runtime. No uses producción para probar.
 
-1) Haz fetch y verifica que 1a76b00f28ddd5676753133689e24405d0f953f0 existe. Si no existe, STOP y reporta. Checkout detached de ese SHA y confirma el SHA real.
-2) En un worktree/base aislados ejecuta npm ci, npm run qa, migraciones desde cero, migraciones sobre copia, test:e2e, pruebas de concurrencia/idempotencia y docker build. Verifica headers, rate limit, captura, callbacks Telegram y que el endpoint legacy de OpenClaw no esté conectado.
-3) Si algún gate falla, NO despliegues. Reporta FAIL, comando, error y SHA.
-4) Solo si todo pasa: respalda PostgreSQL, despliega EXACTAMENTE 1a76b00f28ddd5676753133689e24405d0f953f0 en la ruta indicada, aplica migraciones, espera healthchecks y ejecuta smoke de health/login. Si Telegram está configurado, prueba también el webhook; no inventes credenciales.
-5) Si el deploy o smoke falla, detén tráfico nuevo y aplica rollback al commit/imagen anterior identificable. Reporta resultado, backup, SHA desplegado, health, smoke y rollback.
+1) Verifica:
+git fetch origin refs/heads/codex/capture-operational-confirmation
+git cat-file -t 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
+git merge-base --is-ancestor 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0 FETCH_HEAD
+Si falla algo: STOP; no uses otro SHA ni el HEAD como fallback. Haz checkout detached del SHA exacto.
 
-Respuesta final corta: PASS/FAIL, SHA probado, pruebas, base/migraciones, deploy sí/no, smoke y bloqueos.
+2) En worktree y PostgreSQL aislados ejecuta npm ci, npm run qa, migraciones desde cero y sobre copia, npm run test:e2e y docker build.
+
+3) Verifica concurrencia/idempotencia y rollback de NEW_PURCHASE, NEW_EXPENSE, STOCK_ADJUSTMENT, corte, bordado, ensamblaje, ready-delivery, ajustes manuales y compras. Confirma que no haya stock negativo ni doble consumo. Verifica callbacks Telegram simulados, cookies HttpOnly sin token en localStorage, CSP/HSTS/Permissions-Policy, rechazo de usuarios Telegram fuera de TELEGRAM_ALLOWED_USER_IDS y ausencia de integración runtime con OpenClaw.
+
+4) Si algún gate falla: NO despliegues. Reporta FAIL, SHA, comando y error.
+
+5) Solo si todo pasa: crea backup PostgreSQL, etiqueta rollback, despliega EXACTAMENTE 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0, aplica migraciones, verifica healthy y /api/health=200 y ejecuta smoke autenticado/no autenticado. Si Telegram no tiene secretos reales, reporta no probado; no inventes credenciales.
+
+6) Si deploy/smoke falla, revierte de forma controlada y reporta backup, imagen/commit previo y resultado.
+
+Respuesta breve: PASS/FAIL, SHA, pruebas, migraciones, concurrencia, Docker, deploy, smoke y bloqueos.
 ```
