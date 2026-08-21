@@ -12,7 +12,7 @@
 
 ## Candidato canónico
 
-- SHA exacto de código para la próxima validación: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
+- SHA exacto de código para la próxima validación: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`.
 - El SHA local original `b37dfea6a5da0caab8e9c3dc7e9dfa6987a90ba1` no existía en GitHub. Su estado fue publicado correctamente como `8da2c1b...` con padre remoto `81d0a279...`.
 - Los commits posteriores de la rama son únicamente documentación. OpenClaw debe probar y desplegar el SHA `8da2c1b...`, no el HEAD documental ni otro SHA.
 - Producción no fue tocada durante la corrección del bloqueo.
@@ -38,7 +38,7 @@
 
 ## Estado de QA y deploy del candidato
 
-OpenClaw verificó el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`:
+OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. El siguiente candidato añade el diagnóstico de smoke: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`:
 
 - QA aislado: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
 - Deploy del candidato: intentado, pero revertido porque el smoke autenticado devolvió HTTP 400.
@@ -52,7 +52,7 @@ OpenClaw verificó el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`:
 
 No cambiar código todavía. Capturar el cuerpo exacto del HTTP 400 y validar las credenciales/payload del smoke. En este código, contraseña incorrecta produce 401; HTTP 400 indica correo inválido/vacío, contraseña ausente o payload inválido.
 
-Después de contar con credenciales piloto válidas o ejecutar un reset controlado del usuario mediante el servicio one-shot `bootstrap-user`, repetir QA/deploy condicionado del SHA exacto `8da2c1b...`. No inventar credenciales ni dejar bootstrap secrets permanentes en `.env.production`.
+Después de contar con credenciales piloto válidas o ejecutar un reset controlado del usuario mediante el servicio one-shot `bootstrap-user`, repetir QA/deploy condicionado del SHA exacto `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`. No inventar credenciales ni dejar bootstrap secrets permanentes en `.env.production`.
 
 ## Después de un QA/deploy PASS
 
