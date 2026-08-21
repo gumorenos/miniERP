@@ -27,6 +27,7 @@
 
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
+- Candidato siguiente exacto: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` (añade `npm run smoke:auth` y documentación; requiere repetir QA antes de desplegar).
 - Estado: QA aislado PASS; deploy intentado y revertido por smoke autenticado.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local directa: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
