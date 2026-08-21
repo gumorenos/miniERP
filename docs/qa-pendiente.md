@@ -27,22 +27,26 @@
 
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
-- Estado: publicado en GitHub; pendiente de QA aislado y deploy.
-- Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; no fue tocada.
+- Estado: QA aislado PASS; deploy intentado y revertido por smoke autenticado.
+- Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local directa: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
+- QA OpenClaw: migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers y Docker: PASS.
+- Bloqueo operativo: smoke autenticado devolvió HTTP 400 con las credenciales configuradas. En el candidato, credenciales inválidas producen 401; 400 requiere revisar payload/credenciales bootstrap.
 - Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
 - Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
 - El E2E requiere una base PostgreSQL efímera para ejecutarse.
 
 ### Gates pendientes para este candidato
 
-- [ ] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
-- [ ] Ejecutar `npm run test:e2e` contra PostgreSQL efímero.
-- [ ] Ejecutar concurrencia de corte, envío/recepción de bordado, ensamblaje y preparación de entrega.
-- [ ] Ejecutar concurrencia de ajustes manuales, edición/anulación de compras y consumos de stock compartido; confirmar que nunca quede stock negativo.
-- [ ] Inyectar fallos entre consumo y transición; confirmar rollback completo y ausencia de historial huérfano.
-- [ ] Repetir migraciones desde cero y sobre una copia de producción.
-- [ ] Solo con todos los gates en PASS: backup, migraciones, health, smoke y deploy del SHA exacto.
+- [x] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
+- [x] Ejecutar `npm run test:e2e` contra PostgreSQL efímero.
+- [x] Ejecutar concurrencia de corte, envío/recepción de bordado, ensamblaje y preparación de entrega.
+- [x] Ejecutar concurrencia de ajustes manuales, edición/anulación de compras y consumos de stock compartido; confirmar que nunca quede stock negativo.
+- [x] Repetir migraciones desde cero y sobre una copia de producción.
+- [x] Docker build, headers, cookies, Telegram simulado y ausencia de integración runtime OpenClaw.
+- [ ] Capturar el cuerpo exacto del HTTP 400 del smoke autenticado y validar correo/password bootstrap.
+- [ ] Con credenciales piloto válidas, repetir deploy controlado y smoke autenticado del SHA exacto.
+- [ ] Solo con todos los gates en PASS: mantener el candidato desplegado.
 
 ## QA aislado completado por OpenClaw
 
@@ -82,7 +86,7 @@ El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el e
 
 ## Condición de aprobación
 
-El commit `1a76b00f28ddd5676753133689e24405d0f953f0` quedó aprobado para el despliegue y está en producción. No activar Telegram con datos reales hasta completar la configuración privada y la prueba sintética del canal.
+El candidato `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0` pasó QA, pero no quedó aprobado para producción porque el smoke autenticado devolvió HTTP 400. Producción fue revertida a `de5d3f6f5f088421fee8f3030652808076965656`. No activar Telegram con datos reales hasta cerrar el smoke autenticado.
 
 ## Comandos sugeridos
 
