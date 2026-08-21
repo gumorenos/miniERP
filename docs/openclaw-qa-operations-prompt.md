@@ -50,7 +50,10 @@ docker build
 - despliega EXACTAMENTE el SHA 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
 - aplica migraciones
 - verifica healthy y /api/health=200
-- ejecuta smoke autenticado y no autenticado
+- ejecuta smoke autenticado y no autenticado usando una cuenta piloto válida, no las variables bootstrap vacías o ya rotadas
+- captura siempre status y cuerpo de la respuesta del login y de la primera llamada autenticada
+- interpreta HTTP 400 como payload inválido (correo vacío/mal formado, contraseña ausente u otro error de esquema) y HTTP 401 como credenciales no válidas
+- si no existe una cuenta piloto válida, reporta AUTH_SMOKE_BLOCKED y no despliegues
 - si Telegram no tiene credenciales reales, reporta no probado; no inventes secretos
 
 6. Si deploy/smoke falla, revierte de forma controlada usando backup/imagen y reporta los identificadores.
