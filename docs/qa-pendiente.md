@@ -26,9 +26,10 @@
 ## Candidato post-code-review: hardening transaccional
 
 - Rama: `codex/capture-operational-confirmation`.
-- Estado: cambios implementados localmente, no desplegados.
+- Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
+- Estado: publicado en GitHub; pendiente de QA aislado y deploy.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; no fue tocada.
-- Validación local directa: ESLint PASS, TypeScript PASS, 44 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
+- Validación local directa: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
 - Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
 - Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
 - El E2E requiere una base PostgreSQL efímera para ejecutarse.
@@ -70,7 +71,7 @@ Los gates P0/P1 del candidato están cerrados. Queda pendiente activar el canal 
 
 ### Configuración y prueba pendiente: Telegram real
 
-- [ ] Guardar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BUSINESS_ID`, `TELEGRAM_USER_ID` y `TELEGRAM_ALLOWED_CHAT_IDS` en el entorno privado de producción.
+- [ ] Guardar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BUSINESS_ID`, `TELEGRAM_USER_ID`, `TELEGRAM_ALLOWED_CHAT_IDS` y `TELEGRAM_ALLOWED_USER_IDS` en el entorno privado de producción.
 - [ ] Registrar el webhook oficial usando la URL HTTPS y el secreto configurado.
 - [ ] Probar con datos sintéticos: mensaje, borrador, botones confirmar/rechazar y callbacks.
 - [ ] Repetir un update y confirmar que no duplica el borrador ni el pedido.
