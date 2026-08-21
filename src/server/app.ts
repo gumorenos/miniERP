@@ -30,6 +30,7 @@ import { confirmCaptureDraft, createCaptureDraft, listCaptureDrafts, rejectCaptu
 import { nextOrderNumber } from "./order-number";
 import { weightedAverageCost } from "./stock-cost";
 import { AppError } from "./errors";
+import type { DbTransaction } from "./order-number";
 
 type AppContext = {
   Variables: {
@@ -97,6 +98,18 @@ function bearerToken(header: string | undefined) {
   return header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
+function sessionToken(request: Request) {
+  const bearer = bearerToken(request.headers.get("authorization") ?? undefined);
+  if (bearer) return bearer;
+  const cookie = request.headers.get("cookie") ?? "";
+  return cookie.match(/(?:^|;\s*)minierp_session=([^;]+)/)?.[1] ?? "";
+}
+
+function sessionCookie(token: string, expiresAt: Date) {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `minierp_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt.toUTCString()}${secure}`;
+}
+
 function publicApp() {
   const app = new Hono<AppContext>();
 
@@ -123,11 +136,11 @@ function publicApp() {
     }
     const authUser = { id: user.id, businessId: user.businessId, email: user.email, name: user.name };
     const session = await createSession(authUser);
-    return c.json({ token: session.token, expiresAt: session.expiresAt, user: authUser });
+    return c.json({ token: session.token, expiresAt: session.expiresAt, user: authUser }, 200, { "set-cookie": sessionCookie(session.token, session.expiresAt) });
   });
 
   app.use("/api/*", async (c, next) => {
-    const token = bearerToken(c.req.header("authorization"));
+    const token = sessionToken(c.req.raw);
     const user = await authenticateToken(token);
     if (!user) return c.json({ error: "No autenticado" }, 401);
     c.set("user", user);
@@ -256,37 +269,45 @@ function publicApp() {
   app.post("/api/orders/:id/cut", async (c) => {
     const user = c.get("user");
     const body = cutSchema.parse(await c.req.json());
-    const order = await requireOrder(user.businessId, c.req.param("id"));
-    assertOrderTransition(order.status as OrderStatus, "CUT");
-    const [item] = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
-    if (!item || !item.fabricMaterialId) return c.json({ error: "El pedido no tiene tela configurada" }, 422);
-    const fabricMaterialId = item.fabricMaterialId;
-    const qty = body.actualFabricQty ?? toNumber(item.plannedFabricQty);
-    const existing = await db.query.stockMovements.findFirst({ where: and(eq(stockMovements.orderItemId, item.id), eq(stockMovements.type, "ORDER_CONSUMPTION")) });
-    if (!existing) {
-      await db.transaction(async (tx) => {
+    const orderId = c.req.param("id");
+    await db.transaction(async (tx) => {
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, user.businessId))).for("update").limit(1);
+      if (!order) throw new AppError("Pedido no encontrado", 404, "ORDER_NOT_FOUND");
+      if (order.status === "CUT") return;
+      assertOrderTransition(order.status as OrderStatus, "CUT");
+      const [item] = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
+      if (!item || !item.fabricMaterialId) throw new AppError("El pedido no tiene tela configurada", 422, "FABRIC_NOT_CONFIGURED");
+      const qty = body.actualFabricQty ?? toNumber(item.plannedFabricQty);
+      const existing = await tx.select({ id: stockMovements.id }).from(stockMovements).where(and(eq(stockMovements.orderItemId, item.id), eq(stockMovements.type, "ORDER_CONSUMPTION"))).limit(1);
+      if (!existing.length) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${item.fabricMaterialId}))`);
         await tx.insert(stockMovements).values({
           businessId: user.businessId,
-          materialId: fabricMaterialId,
+          materialId: item.fabricMaterialId,
           type: "ORDER_CONSUMPTION",
           quantitySigned: String(-qty),
           orderItemId: item.id,
           notes: `Corte de pedido ${order.orderNumber}`
         });
         await tx.update(orderItems).set({ actualFabricQty: String(qty), actualMaterialCost: body.actualMaterialCost == null ? item.estimatedMaterialCost : String(body.actualMaterialCost) }).where(eq(orderItems.id, item.id));
-      });
-    }
-    await transitionOrder(order.id, order.status as OrderStatus, "CUT", existing ? "Corte ya registrado; no se desconto stock otra vez" : "Corte registrado");
-    return c.json(await loadOrder(user.businessId, order.id));
+      }
+      await setOrderStatus(tx, order.id, order.status as OrderStatus, "CUT", existing.length ? "Corte ya registrado; no se desconto stock otra vez" : "Corte registrado");
+    });
+    return c.json(await loadOrder(user.businessId, orderId));
   });
 
   app.post("/api/orders/:id/send-embroidery", async (c) => {
     const user = c.get("user");
     const body = sendEmbroiderySchema.parse(await c.req.json());
-    const order = await requireOrder(user.businessId, c.req.param("id"));
-    const [item] = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
-    if (!item) return c.json({ error: "Pedido sin item" }, 422);
+    const orderId = c.req.param("id");
     await db.transaction(async (tx) => {
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.businessId, user.businessId))).for("update").limit(1);
+      if (!order) throw new AppError("Pedido no encontrado", 404, "ORDER_NOT_FOUND");
+      assertOrderTransition(order.status as OrderStatus, "AT_EMBROIDERER");
+      const [item] = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id)).limit(1);
+      if (!item) throw new AppError("Pedido sin item", 422, "ORDER_ITEM_NOT_FOUND");
+      const existing = await tx.select({ id: embroideryJobs.id }).from(embroideryJobs).where(and(eq(embroideryJobs.orderItemId, item.id), eq(embroideryJobs.status, "SENT"))).limit(1);
+      if (existing.length) throw new AppError("El pedido ya tiene un bordado pendiente", 409, "EMBROIDERY_ALREADY_SENT");
       await tx.insert(embroideryJobs).values({
         businessId: user.businessId,
         orderItemId: item.id,
@@ -297,21 +318,29 @@ function publicApp() {
         estimatedCost: String(body.estimatedCost),
         notes: body.notes ?? null
       });
+      await setOrderStatus(tx, order.id, order.status as OrderStatus, "AT_EMBROIDERER", "Enviado al bordador");
     });
-    await transitionOrder(order.id, order.status as OrderStatus, "AT_EMBROIDERER", "Enviado al bordador");
-    return c.json(await loadOrder(user.businessId, order.id));
+    return c.json(await loadOrder(user.businessId, orderId));
   });
 
   app.post("/api/embroidery-jobs/:id/receive", async (c) => {
     const user = c.get("user");
     const body = receiveEmbroiderySchema.parse(await c.req.json());
-    const [job] = await db.select().from(embroideryJobs).where(and(eq(embroideryJobs.id, c.req.param("id")), eq(embroideryJobs.businessId, user.businessId))).limit(1);
-    if (!job) return c.json({ error: "Trabajo de bordado no encontrado" }, 404);
-    const [item] = await db.select().from(orderItems).where(eq(orderItems.id, job.orderItemId)).limit(1);
-    const order = item ? await requireOrder(user.businessId, item.orderId) : null;
-    await db.update(embroideryJobs).set({ status: "RECEIVED", actualCost: String(body.actualCost), receivedAt: body.receivedAt ? new Date(body.receivedAt) : new Date(), notes: body.notes ?? job.notes }).where(eq(embroideryJobs.id, job.id));
-    if (order) await transitionOrder(order.id, order.status as OrderStatus, "EMBROIDERY_RECEIVED", "Bordado recibido");
-    return c.json(order ? await loadOrder(user.businessId, order.id) : { ok: true });
+    let orderId = "";
+    await db.transaction(async (tx) => {
+      const [job] = await tx.select().from(embroideryJobs).where(and(eq(embroideryJobs.id, c.req.param("id")), eq(embroideryJobs.businessId, user.businessId))).for("update").limit(1);
+      if (!job) throw new AppError("Trabajo de bordado no encontrado", 404, "EMBROIDERY_JOB_NOT_FOUND");
+      if (job.status !== "SENT") throw new AppError("El trabajo de bordado ya fue recibido o cerrado", 409, "EMBROIDERY_ALREADY_RECEIVED");
+      const [item] = await tx.select().from(orderItems).where(eq(orderItems.id, job.orderItemId)).limit(1);
+      if (!item) throw new AppError("El trabajo de bordado no tiene pedido asociado", 409, "EMBROIDERY_ORDER_MISSING");
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, item.orderId), eq(orders.businessId, user.businessId))).for("update").limit(1);
+      if (!order) throw new AppError("Pedido no encontrado", 404, "ORDER_NOT_FOUND");
+      assertOrderTransition(order.status as OrderStatus, "EMBROIDERY_RECEIVED");
+      await tx.update(embroideryJobs).set({ status: "RECEIVED", actualCost: String(body.actualCost), receivedAt: body.receivedAt ? new Date(body.receivedAt) : new Date(), notes: body.notes ?? job.notes }).where(eq(embroideryJobs.id, job.id));
+      await setOrderStatus(tx, order.id, order.status as OrderStatus, "EMBROIDERY_RECEIVED", "Bordado recibido");
+      orderId = order.id;
+    });
+    return c.json(await loadOrder(user.businessId, orderId));
   });
 
   app.notFound(async (c) => {
@@ -338,16 +367,24 @@ async function requireOrder(businessId: string, id: string) {
 async function transitionOrder(orderId: string, from: OrderStatus, to: OrderStatus, note?: string | null) {
   assertOrderTransition(from, to);
   if (from === to) return;
+  await db.transaction(async (tx) => setOrderStatus(tx, orderId, from, to, note));
+}
+
+async function setOrderStatus(tx: DbTransaction, orderId: string, from: OrderStatus, to: OrderStatus, note?: string | null) {
+  assertOrderTransition(from, to);
+  if (from === to) return;
+  const [current] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).for("update").limit(1);
+  if (!current) throw new AppError("Pedido no encontrado", 404, "ORDER_NOT_FOUND");
+  if (current.status !== from) throw new AppError("El pedido cambió mientras se procesaba la operación. Intenta nuevamente.", 409, "ORDER_STATE_CHANGED");
   const patch: Partial<typeof orders.$inferInsert> = {
     status: to,
     updatedAt: new Date()
   };
   if (to === "DELIVERED") patch.deliveredAt = new Date();
   if (to === "CLOSED") patch.closedAt = new Date();
-  await db.transaction(async (tx) => {
-    await tx.update(orders).set(patch).where(eq(orders.id, orderId));
-    await tx.insert(orderStatusHistory).values({ orderId, fromStatus: from, toStatus: to, note: note ?? null });
-  });
+  const updated = await tx.update(orders).set(patch).where(and(eq(orders.id, orderId), eq(orders.status, from))).returning({ id: orders.id });
+  if (!updated.length) throw new AppError("El pedido cambió mientras se procesaba la operación. Intenta nuevamente.", 409, "ORDER_STATE_CHANGED");
+  await tx.insert(orderStatusHistory).values({ orderId, fromStatus: from, toStatus: to, note: note ?? null });
 }
 
 async function loadProducts(businessId: string) {

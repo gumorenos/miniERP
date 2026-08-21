@@ -1,13 +1,19 @@
 # QA pendiente — miniERP / Samiiwara
 
-Última actualización: 2026-08-19
+Última actualización: 2026-08-21
 
 ## Base revisada
 
-- Rama validada/desplegada: `codex/telegram-direct-candidate`
-- Commit exacto: `1a76b00f28ddd5676753133689e24405d0f953f0`
+- Rama validada/desplegada: `codex/capture-operational-confirmation`
+- Commit exacto: `de5d3f6f5f088421fee8f3030652808076965656`
 - Producción: desplegada y saludable en `https://prueba.gumorenos.space`.
 - OpenClaw: usado únicamente para QA y despliegue; no forma parte del runtime.
+
+## Estado de producción
+
+- OpenClaw confirmó PASS de QA, migraciones, E2E, concurrencia/idempotencia, callbacks Telegram simulados y Docker antes del deploy.
+- Healthcheck de producción: PASS.
+- Smoke de login real: pendiente porque las credenciales disponibles devolvieron `400`; no se inventaron credenciales ni se tocó producción durante este trabajo.
 
 ## Validaciones ejecutadas
 
@@ -17,27 +23,25 @@
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
-## Candidato de desarrollo siguiente: operaciones conversacionales
+## Candidato post-code-review: hardening transaccional
 
-- Rama local: `codex/capture-operational-confirmation`.
-- Commit local exacto: `8cfa285cf0a080a3c29b5d7190121024e1b4f9b3`.
-- Candidato de código publicado para re-QA: `de5d3f6f5f088421fee8f3030652808076965656`.
-- Estado: corregido y publicado para re-QA; no desplegado y no aprobado todavía para producción.
-- Producción permanece en `1a76b00f28ddd5676753133689e24405d0f953f0`; no fue tocada durante este incremento.
-- Validación local directa: ESLint PASS, TypeScript PASS, 44 pruebas PASS en 11 archivos, build Vite PASS y `git diff --check` PASS.
-- Cambios funcionales: confirmación humana y transaccional de `NEW_PURCHASE`, `NEW_EXPENSE` y `STOCK_ADJUSTMENT`; resolución de materiales/proveedores; costo unitario con total derivado; persistencia de entidad confirmada; migración `0015_capture_operation_confirmation.sql`.
-- El E2E `scripts/e2e-flow.ts` incorpora escenarios para las tres operaciones. El reporte anterior falló en la aserción del corte porque comparaba contra el saldo inicial aunque antes se habían sumado +2 por compra y +1 por ajuste; el candidato nuevo usa la línea base inmediatamente anterior al corte y verifica `actualFabricQty=1`. Aún requiere una base PostgreSQL efímera para ejecutarse.
+- Rama: `codex/capture-operational-confirmation`.
+- Estado: cambios implementados localmente, no desplegados.
+- Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; no fue tocada.
+- Validación local directa: ESLint PASS, TypeScript PASS, 44 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
+- Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
+- Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
+- El E2E requiere una base PostgreSQL efímera para ejecutarse.
 
 ### Gates pendientes para este candidato
 
-- [ ] Aplicar la migración `0015_capture_operation_confirmation.sql` desde cero y sobre una copia de datos.
-- [ ] Ejecutar `npm run qa` en el worktree aislado; la validación local equivalente usó binarios instalados directamente porque el wrapper `npm run` pidió aprobación de red.
-- [ ] Ejecutar `npm run test:e2e` y comprobar compra, gasto, ajuste de stock y corte idempotente con el candidato `de5d3f6f5f088421fee8f3030652808076965656`.
-- [ ] Comprobar transacción atómica: si falla la confirmación, no queda compra/línea/movimiento o gasto huérfano.
-- [ ] Comprobar idempotencia: dos confirmaciones concurrentes del mismo borrador producen una sola operación.
-- [ ] Comprobar que un ajuste de salida no permite stock negativo bajo concurrencia.
-- [ ] Revisar callbacks Telegram con estos tres tipos de borrador; no requiere credenciales reales para el primer gate si se usan dependencias simuladas.
-- [ ] Solo con todos los gates en PASS: backup, migraciones, health, smoke y deploy del SHA exacto. No desplegar desde esta rama sin aprobación explícita del reporte QA.
+- [ ] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
+- [ ] Ejecutar `npm run test:e2e` contra PostgreSQL efímero.
+- [ ] Ejecutar concurrencia de corte, envío/recepción de bordado, ensamblaje y preparación de entrega.
+- [ ] Ejecutar concurrencia de ajustes manuales, edición/anulación de compras y consumos de stock compartido; confirmar que nunca quede stock negativo.
+- [ ] Inyectar fallos entre consumo y transición; confirmar rollback completo y ausencia de historial huérfano.
+- [ ] Repetir migraciones desde cero y sobre una copia de producción.
+- [ ] Solo con todos los gates en PASS: backup, migraciones, health, smoke y deploy del SHA exacto.
 
 ## QA aislado completado por OpenClaw
 

@@ -3,7 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
   isTelegramChatAllowed,
+  isTelegramUserAllowed,
   parseTelegramAllowedChatIds,
+  parseTelegramAllowedUserIds,
   telegramDraftCanConfirm,
   telegramDraftText,
   telegramHelpText,
@@ -24,13 +26,16 @@ const telegramIdentifierSchema = z.union([
 ]).transform((value) => String(value));
 
 const telegramChatSchema = z.object({ id: telegramIdentifierSchema }).passthrough();
+const telegramUserSchema = z.object({ id: telegramIdentifierSchema }).passthrough();
 const telegramMessageSchema = z.object({
   message_id: telegramIdentifierSchema,
   chat: telegramChatSchema,
+  from: telegramUserSchema.optional(),
   text: z.string().trim().max(4000).optional()
 }).passthrough();
 const telegramCallbackSchema = z.object({
   id: z.string().trim().min(1).max(200),
+  from: telegramUserSchema.optional(),
   data: z.string().trim().max(200).optional(),
   message: telegramMessageSchema.optional()
 }).passthrough();
@@ -50,11 +55,12 @@ export type TelegramWebhookConfig = {
   businessId: string;
   userId: string;
   allowedChatIds: Set<string>;
+  allowedUserIds: Set<string>;
 };
 
 export type TelegramWebhookEvent =
-  | { kind: "message"; chatId: string; messageId: string; text: string }
-  | { kind: "callback"; chatId: string; callbackId: string; action: "CONFIRM" | "REJECT"; draftId: string }
+  | { kind: "message"; chatId: string; userId: string; messageId: string; text: string }
+  | { kind: "callback"; chatId: string; userId: string; callbackId: string; action: "CONFIRM" | "REJECT"; draftId: string }
   | { kind: "unsupported"; chatId?: string };
 
 type SendMessage = (
@@ -99,7 +105,8 @@ export function readTelegramWebhookConfig(env: Record<string, string | undefined
     webhookSecret: env.TELEGRAM_WEBHOOK_SECRET?.trim() ?? "",
     businessId: env.TELEGRAM_BUSINESS_ID?.trim() ?? "",
     userId: env.TELEGRAM_USER_ID?.trim() ?? "",
-    allowedChatIds: parseTelegramAllowedChatIds(env.TELEGRAM_ALLOWED_CHAT_IDS)
+    allowedChatIds: parseTelegramAllowedChatIds(env.TELEGRAM_ALLOWED_CHAT_IDS),
+    allowedUserIds: parseTelegramAllowedUserIds(env.TELEGRAM_ALLOWED_USER_IDS)
   };
 }
 
@@ -109,7 +116,8 @@ export function telegramWebhookConfigReady(config: TelegramWebhookConfig) {
     && config.webhookSecret.length >= 32
     && isUuid(config.businessId)
     && isUuid(config.userId)
-    && config.allowedChatIds.size > 0;
+    && config.allowedChatIds.size > 0
+    && config.allowedUserIds.size > 0;
 }
 
 export function matchesTelegramWebhookSecret(provided: string, expected: string) {
@@ -155,6 +163,7 @@ export function parseTelegramUpdate(value: unknown): TelegramWebhookEvent | null
       return {
         kind: "callback",
         chatId,
+        userId: callback.from?.id ?? "",
         callbackId: callback.id,
         action: callbackData.action,
         draftId: callbackData.draftId
@@ -168,6 +177,7 @@ export function parseTelegramUpdate(value: unknown): TelegramWebhookEvent | null
     return {
       kind: "message",
       chatId: message.chat.id,
+      userId: message.from?.id ?? "",
       messageId: message.message_id,
       text: message.text
     };
@@ -343,6 +353,7 @@ export async function handleTelegramWebhook(
   if (!event) return errorResponse("Actualización de Telegram inválida.", 400);
   if (event.kind === "unsupported") return json({ ok: true, type: "IGNORED" });
   if (!isTelegramChatAllowed(event.chatId, config.allowedChatIds)) return errorResponse("Chat Telegram no autorizado.", 403);
+  if (!isTelegramUserAllowed(event.userId, config.allowedUserIds)) return errorResponse("Usuario Telegram no autorizado.", 403);
   if (!allowChatRequest(event.chatId)) return errorResponse("Demasiados mensajes; intenta nuevamente en un minuto.", 429);
 
   try {

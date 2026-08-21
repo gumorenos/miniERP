@@ -1,4 +1,3 @@
-import { getToken } from "./api";
 import type { CaptureChannel, CaptureIntent, CapturePayload } from "../domain/capture";
 
 export type CaptureDraft = {
@@ -22,12 +21,11 @@ export type CaptureDraft = {
 };
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  const token = getToken();
   const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: "Bearer " + token } : {}),
       ...options.headers
     }
   });

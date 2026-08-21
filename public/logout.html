@@ -5,16 +5,12 @@
   <p>Saliendo...</p>
   <script>
     (async () => {
-      const key = "minierp.token";
-      const token = localStorage.getItem(key);
-      if (token) {
-        await fetch("/api/auth/logout", {
+      await fetch("/api/auth/logout", {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
           body: JSON.stringify({})
         }).catch(() => undefined);
-      }
-      localStorage.removeItem(key);
       location.replace("/login.html");
     })();
   </script>

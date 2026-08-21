@@ -15,7 +15,8 @@ const env = {
   TELEGRAM_WEBHOOK_SECRET: "s".repeat(32),
   TELEGRAM_BUSINESS_ID: "11111111-1111-4111-8111-111111111111",
   TELEGRAM_USER_ID: "22222222-2222-4222-8222-222222222222",
-  TELEGRAM_ALLOWED_CHAT_IDS: "-100123,456"
+  TELEGRAM_ALLOWED_CHAT_IDS: "-100123,456",
+  TELEGRAM_ALLOWED_USER_IDS: "9001"
 };
 
 const user = {
@@ -43,15 +44,15 @@ const draft = {
   parserVersion: "rules-v1"
 };
 
-function webhookRequest(body: unknown, chatId = "-100123", secret = env.TELEGRAM_WEBHOOK_SECRET) {
+function webhookRequest(body: unknown, chatId = "-100123", secret = env.TELEGRAM_WEBHOOK_SECRET, userId = "9001") {
   const update = { ...(body as Record<string, unknown>) };
   if (update.message && typeof update.message === "object") {
-    update.message = { ...(update.message as Record<string, unknown>), chat: { id: chatId } };
+    update.message = { ...(update.message as Record<string, unknown>), chat: { id: chatId }, from: { id: userId } };
   }
   if (update.callback_query && typeof update.callback_query === "object") {
     const callback = update.callback_query as Record<string, unknown>;
     const message = callback.message && typeof callback.message === "object" ? callback.message as Record<string, unknown> : {};
-    update.callback_query = { ...callback, message: { ...message, chat: { id: chatId } } };
+    update.callback_query = { ...callback, from: { id: userId }, message: { ...message, chat: { id: chatId } } };
   }
   return new Request("https://minierp.local/api/integrations/telegram/webhook", {
     method: "POST",
@@ -68,6 +69,7 @@ describe("Telegram webhook parsing and configuration", () => {
     const config = readTelegramWebhookConfig(env);
     expect(telegramWebhookConfigReady(config)).toBe(true);
     expect(config.allowedChatIds.has("-100123")).toBe(true);
+    expect(config.allowedUserIds.has("9001")).toBe(true);
     expect(telegramWebhookConfigReady(readTelegramWebhookConfig({ ...env, TELEGRAM_ALLOWED_CHAT_IDS: "" }))).toBe(false);
   });
 
@@ -80,16 +82,17 @@ describe("Telegram webhook parsing and configuration", () => {
   it("parses text updates and UUID-scoped callback data", () => {
     expect(parseTelegramUpdate({
       update_id: 1,
-      message: { message_id: 7, chat: { id: -100123 }, text: "hola" }
-    })).toEqual({ kind: "message", chatId: "-100123", messageId: "7", text: "hola" });
+      message: { message_id: 7, from: { id: 9001 }, chat: { id: -100123 }, text: "hola" }
+    })).toEqual({ kind: "message", chatId: "-100123", userId: "9001", messageId: "7", text: "hola" });
     expect(parseTelegramUpdate({
       update_id: 2,
       callback_query: {
         id: "callback-1",
+        from: { id: 9001 },
         data: telegramCallbackData("CONFIRM", draft.id),
         message: { message_id: 8, chat: { id: -100123 } }
       }
-    })).toEqual({ kind: "callback", chatId: "-100123", callbackId: "callback-1", action: "CONFIRM", draftId: draft.id });
+    })).toEqual({ kind: "callback", chatId: "-100123", userId: "9001", callbackId: "callback-1", action: "CONFIRM", draftId: draft.id });
     expect(parseTelegramCallbackData("capture:confirm:not-a-uuid")).toBeNull();
   });
 
@@ -155,5 +158,12 @@ describe("Telegram webhook flow", () => {
       resolveUser: async () => user
     });
     expect(response.status).toBe(401);
+  });
+
+  it("rejects a chat participant that is not in the Telegram user allowlist", async () => {
+    const response = await handleTelegramWebhook(webhookRequest({ update_id: 6, message: { message_id: 11, text: "hola" } }, "-100123", env.TELEGRAM_WEBHOOK_SECRET, "9999"), env, {
+      resolveUser: async () => user
+    });
+    expect(response.status).toBe(403);
   });
 });

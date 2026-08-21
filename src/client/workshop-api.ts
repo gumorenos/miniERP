@@ -1,12 +1,11 @@
-import { getToken, type Customer, type OrderDetail } from "./api";
+import { type Customer, type OrderDetail } from "./api";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...options.headers
     }
   });

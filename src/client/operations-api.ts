@@ -1,4 +1,4 @@
-import { getToken, type Bootstrap, type Supplier } from "./api";
+import { type Bootstrap, type Supplier } from "./api";
 
 export type SizeConsumptionRow = { productId: string; size: string; fabricQtyMeters: number | null };
 export type ProviderRow = { id: string; name: string; phone?: string | null; notes?: string | null };
@@ -16,7 +16,7 @@ export type CustomerHistoryData = {
   orders: Array<{ id: string; orderNumber: string; status: string; orderDate: string; promisedDeliveryDate?: string | null; agreedTotalPrice: string; totalPaid: number; balance: number }>;
 };
 
-async function request<T>(path:string,options:RequestInit={}){const token=getToken();const response=await fetch(path,{...options,headers:{"content-type":"application/json",...(token?{authorization:`Bearer ${token}`}:{ }),...options.headers}});const contentType=response.headers.get("content-type")??"";const raw=await response.text().catch(()=>"");let payload:{error?:string}={};if(contentType.includes("application/json")){try{payload=JSON.parse(raw) as {error?:string};}catch{/* use status fallback */}}if(!response.ok)throw new Error(payload.error??(response.status===409?"No se puede completar porque el registro todavía tiene información relacionada.":`No se pudo completar la acción (${response.status}).`));return (contentType.includes("application/json")&&raw?JSON.parse(raw) as T:{}) as T;}
+async function request<T>(path:string,options:RequestInit={}){const response=await fetch(path,{...options,credentials:"same-origin",headers:{"content-type":"application/json",...options.headers}});const contentType=response.headers.get("content-type")??"";const raw=await response.text().catch(()=>"");let payload:{error?:string}={};if(contentType.includes("application/json")){try{payload=JSON.parse(raw) as {error?:string};}catch{/* use status fallback */}}if(!response.ok)throw new Error(payload.error??(response.status===409?"No se puede completar porque el registro todavía tiene información relacionada.":`No se pudo completar la acción (${response.status}).`));return (contentType.includes("application/json")&&raw?JSON.parse(raw) as T:{}) as T;}
 
 export const operationsApi={
   dashboard:()=>request<OperationalDashboard>("/api/workshop/dashboard"),

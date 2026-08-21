@@ -107,7 +107,12 @@ async function main() {
   check(detail.payments.length === 1 && detail.financials.balance === 220, "payment did not update balance from movement history");
 
   await request(`/api/orders/${order.id}/transition`, token, { method: "POST", body: JSON.stringify({ status: "READY_TO_CUT" }) });
-  detail = await request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) });
+  const concurrentCuts = await Promise.all([
+    request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) }),
+    request<any>(`/api/orders/${order.id}/cut`, token, { method: "POST", body: JSON.stringify({}) })
+  ]);
+  check(concurrentCuts.every((result) => result.status === "CUT"), "concurrent cut requests did not converge to CUT");
+  detail = concurrentCuts[0];
   check(detail.status === "CUT", "cut transition failed");
   check(Number(detail.items[0]?.actualFabricQty) === 1, "cut did not snapshot actual fabric quantity");
   const afterFirstCut = await request<any>("/api/bootstrap", token);
@@ -127,7 +132,11 @@ async function main() {
   detail = await request<any>(`/api/embroidery-jobs/${job.id}/receive`, token, { method: "POST", body: JSON.stringify({ actualCost: 90 }) });
   check(detail.status === "EMBROIDERY_RECEIVED", "embroidery receive did not update order");
 
-  await request(`/api/workshop/orders/${order.id}/assembly`, token, { method: "POST", body: "{}" });
+  const concurrentAssembly = await Promise.all([
+    request<any>(`/api/workshop/orders/${order.id}/assembly`, token, { method: "POST", body: "{}" }),
+    request<any>(`/api/workshop/orders/${order.id}/assembly`, token, { method: "POST", body: "{}" })
+  ]);
+  check(concurrentAssembly.every((result) => result.status === "ASSEMBLY"), "concurrent assembly requests did not converge to ASSEMBLY");
   const afterAssembly = await request<any>("/api/bootstrap", token);
   const closureAfterAssembly = afterAssembly.materials.find((item: any) => item.id === closureBefore.id);
   check(closureAfterAssembly.currentQuantity === closureBefore.currentQuantity - 1, "assembly did not consume exactly one closure");
@@ -135,7 +144,11 @@ async function main() {
   const afterSecondAssembly = await request<any>("/api/bootstrap", token);
   check(afterSecondAssembly.materials.find((item: any) => item.id === closureBefore.id).currentQuantity === closureAfterAssembly.currentQuantity, "second assembly consumed closure again");
 
-  await request(`/api/workshop/orders/${order.id}/ready-delivery`, token, { method: "POST", body: "{}" });
+  const concurrentReady = await Promise.all([
+    request<any>(`/api/workshop/orders/${order.id}/ready-delivery`, token, { method: "POST", body: "{}" }),
+    request<any>(`/api/workshop/orders/${order.id}/ready-delivery`, token, { method: "POST", body: "{}" })
+  ]);
+  check(concurrentReady.every((result) => result.status === "READY_FOR_DELIVERY"), "concurrent ready-for-delivery requests did not converge");
   const afterReady = await request<any>("/api/bootstrap", token);
   const packagingAfterReady = afterReady.materials.find((item: any) => item.id === packagingBefore.id);
   check(packagingAfterReady.currentQuantity === packagingBefore.currentQuantity - 1, "ready for delivery did not consume exactly one package");

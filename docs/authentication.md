@@ -12,6 +12,7 @@ Pilot authentication uses two layers:
 - Sessions expire after `SESSION_TTL_DAYS` (30 days by default).
 - Restarting the app does not invalidate a valid session.
 - `POST /api/auth/logout` revokes the current session by setting `revoked_at`.
+- La interfaz web usa la cookie `minierp_session` con atributos `HttpOnly`, `SameSite=Lax`, `Path=/` y `Secure` en producción; no persiste el bearer token en `localStorage`. El bearer en `Authorization` se conserva temporalmente para compatibilidad con scripts de QA y clientes transitorios.
 - Disabled users cannot use existing sessions.
 - Revoked session rows are retained for audit/history instead of being deleted.
 

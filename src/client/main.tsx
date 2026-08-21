@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { api, clearToken, getToken, setToken, type Bootstrap, type OrderDetail } from "./api";
+import { api, clearToken, type Bootstrap, type OrderDetail } from "./api";
 import { CustomerManager } from "./customer-manager";
 import { ProductsManager } from "./products-manager";
 import { InventoryManager } from "./inventory-manager";
@@ -24,7 +24,8 @@ const statusLabels: Record<string, string> = {
 const fmt = (value: number | string | null | undefined) => `S/ ${Number(value ?? 0).toFixed(2)}`;
 
 function App() {
-  const [token, setSessionToken] = useState(getToken());
+  const [authenticated, setAuthenticated] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [data, setData] = useState<Bootstrap | null>(null);
   const [screen, setScreen] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
@@ -42,16 +43,21 @@ function App() {
   };
 
   useEffect(() => {
-    if (token) reload().catch((err) => setError(err.message));
-  }, [token]);
+    api.session().then(() => setAuthenticated(true)).catch(() => setAuthenticated(false)).finally(() => setCheckingSession(false));
+  }, []);
 
-  if (!token) {
-    return <Login onLogin={(nextToken) => { setToken(nextToken); setSessionToken(nextToken); }} />;
+  useEffect(() => {
+    if (authenticated) reload().catch((err) => setError(err.message));
+  }, [authenticated]);
+
+  if (checkingSession) return <main className="login"><p>Cargando...</p></main>;
+  if (!authenticated) {
+    return <Login onLogin={() => setAuthenticated(true)} />;
   }
-  if (!data) return <Shell error={error} onLogout={() => logout(setSessionToken)}><p>Cargando...</p></Shell>;
+  if (!data) return <Shell error={error} onLogout={() => logout(setAuthenticated)}><p>Cargando...</p></Shell>;
 
   return (
-    <Shell data={data} error={error} onLogout={() => logout(setSessionToken)} screen={screen} setScreen={setScreen}>
+    <Shell data={data} error={error} onLogout={() => logout(setAuthenticated)} screen={screen} setScreen={setScreen}>
       {screen === "dashboard" && <Dashboard data={data} />}
       {screen === "orders" && <Orders data={data} onOpen={openOrder} />}
       {screen === "newOrder" && <NewOrder data={data} onCreated={async (order) => { await reload(); setSelectedOrder(order); setScreen("orderDetail"); }} />}
@@ -63,12 +69,12 @@ function App() {
   );
 }
 
-function logout(setSessionToken: (value: string | null) => void) {
+function logout(setAuthenticated: (value: boolean) => void) {
   clearToken();
-  setSessionToken(null);
+  setAuthenticated(false);
 }
 
-function Login({ onLogin }: { onLogin: (token: string) => void }) {
+function Login({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("admin@example.test");
   const [password, setPassword] = useState("change-me-dev");
   const [error, setError] = useState("");
@@ -79,7 +85,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
         <h1>Operacion del taller</h1>
         <form onSubmit={async (event) => {
           event.preventDefault(); setError("");
-          try { const result = await api.login(email, password); onLogin(result.token); }
+          try { await api.login(email, password); onLogin(); }
           catch (err) { setError(err instanceof Error ? err.message : "No se pudo entrar"); }
         }}>
           <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} /></label>

@@ -1,6 +1,4 @@
 (() => {
-  const tokenKey = "minierp.token";
-
   const setReactInputValue = (input, value) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
     setter?.call(input, value);
@@ -43,11 +41,9 @@
   };
 
   const enforcePendingPasswordChange = async () => {
-    const token = localStorage.getItem(tokenKey);
-    if (!token || location.pathname === "/change-password.html") return;
-    const response = await fetch("/api/auth/session", { headers: { authorization: `Bearer ${token}` } }).catch(() => null);
+    if (location.pathname === "/change-password.html") return;
+    const response = await fetch("/api/auth/session", { credentials: "same-origin" }).catch(() => null);
     if (!response || response.status === 401) {
-      localStorage.removeItem(tokenKey);
       return;
     }
     if (!response.ok) return;

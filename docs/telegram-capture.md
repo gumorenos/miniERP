@@ -18,7 +18,7 @@ Telegram debe llamar al endpoint por HTTPS y enviar el header oficial:
 
     x-telegram-bot-api-secret-token: <TELEGRAM_WEBHOOK_SECRET>
 
-La ruta no usa la sesión normal de la aplicación. La identidad de negocio queda fijada por `TELEGRAM_BUSINESS_ID` y `TELEGRAM_USER_ID`; ambos deben pertenecer a un usuario activo de la misma base. El chat se valida contra `TELEGRAM_ALLOWED_CHAT_IDS`.
+La ruta no usa la sesión normal de la aplicación. La identidad de negocio queda fijada por `TELEGRAM_BUSINESS_ID` y `TELEGRAM_USER_ID`; ambos deben pertenecer a un usuario activo de la misma base. El chat se valida contra `TELEGRAM_ALLOWED_CHAT_IDS` y el remitente contra `TELEGRAM_ALLOWED_USER_IDS`. Para operaciones no se debe autorizar únicamente un grupo.
 
 El adaptador responde al webhook y envía el contenido visible a la usuaria mediante la API del bot:
 
@@ -37,12 +37,14 @@ Las actualizaciones que no sean mensajes de texto o callbacks reconocidos se ign
     TELEGRAM_BUSINESS_ID=
     TELEGRAM_USER_ID=
     TELEGRAM_ALLOWED_CHAT_IDS=
+    TELEGRAM_ALLOWED_USER_IDS=
 
 Requisitos:
 
 - El token y el secreto viven únicamente en el entorno privado del servidor.
 - El secreto debe tener al menos 32 caracteres.
 - `TELEGRAM_ALLOWED_CHAT_IDS` es una lista separada por comas y no puede quedar vacía.
+- `TELEGRAM_ALLOWED_USER_IDS` es una lista separada por comas y no puede quedar vacía.
 - La integración queda deshabilitada si falta cualquiera de las variables o la cuenta configurada no está activa.
 - Nunca colocar valores reales en Git, logs, prompts o mensajes de Telegram.
 

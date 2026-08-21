@@ -39,11 +39,6 @@ async function supplierForBusiness(businessId: string, id: string) {
   return row ?? null;
 }
 
-async function currentStock(materialId: string) {
-  const [row] = await db.select({ qty: sql<string>`coalesce(sum(${stockMovements.quantitySigned}), 0)` }).from(stockMovements).where(eq(stockMovements.materialId, materialId));
-  return Number(row?.qty ?? 0);
-}
-
 async function purchaseDetail(businessId: string, id: string) {
   const [purchase] = await db.select().from(purchases).where(and(eq(purchases.id, id), eq(purchases.businessId, businessId))).limit(1);
   if (!purchase) return null;
@@ -117,20 +112,9 @@ export async function updatePurchase(request: Request, user: AuthUser) {
   const updates = new Map((parsed.data.lines ?? []).map((line) => [line.id, line]));
   for (const id of updates.keys()) if (!current.lines.some((line) => line.id === id)) return json({ error: "Línea de compra inválida" }, 400);
 
-  if (updates.size) {
-    const movements = await db.select().from(stockMovements).where(inArray(stockMovements.purchaseLineId, [...updates.keys()]));
-    for (const line of current.lines) {
-      const correction = updates.get(line.id);
-      if (!correction) continue;
-      const movement = movements.find((row) => row.purchaseLineId === line.id);
-      if (!movement) return json({ error: "La compra perdió su movimiento de inventario y no puede editarse de forma segura" }, 409);
-      const available = await currentStock(line.materialId);
-      const projected = available - Number(movement.quantitySigned) + correction.quantity;
-      if (projected < -0.0001) return json({ error: `No puedes reducir esta compra a ${correction.quantity}; el stock de ${line.materialId} quedaría negativo` }, 409);
-    }
-  }
-
-  await db.transaction(async (tx) => {
+  try { await db.transaction(async (tx) => {
+    const materialsToLock = [...new Set(current.lines.filter((line) => updates.has(line.id)).map((line) => line.materialId))].sort();
+    for (const materialId of materialsToLock) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${materialId}))`);
     let total = 0;
     for (const line of current.lines) {
       const correction = updates.get(line.id);
@@ -139,6 +123,11 @@ export async function updatePurchase(request: Request, user: AuthUser) {
       const unitCost = totalCost / quantity;
       total += totalCost;
       if (correction) {
+        const [movement] = await tx.select().from(stockMovements).where(eq(stockMovements.purchaseLineId, line.id)).for("update").limit(1);
+        if (!movement) throw new PurchaseOperationError("La compra perdió su movimiento de inventario y no puede editarse de forma segura");
+        const [stockRow] = await tx.select({ qty: sql<string>`coalesce(sum(${stockMovements.quantitySigned}),0)` }).from(stockMovements).where(and(eq(stockMovements.businessId, user.businessId), eq(stockMovements.materialId, line.materialId)));
+        const projected = Number(stockRow?.qty ?? 0) - Number(movement.quantitySigned) + quantity;
+        if (projected < -0.0001) throw new PurchaseOperationError(`No puedes reducir esta compra a ${quantity}; el stock de ${line.materialId} quedaría negativo`);
         await tx.update(purchaseLines).set({ quantity:String(quantity),totalCost:String(totalCost),unitCost:String(unitCost) }).where(eq(purchaseLines.id,line.id));
         await tx.update(stockMovements).set({ quantitySigned:String(quantity),unitCost:String(unitCost) }).where(eq(stockMovements.purchaseLineId,line.id));
       }
@@ -147,7 +136,7 @@ export async function updatePurchase(request: Request, user: AuthUser) {
       ...(parsed.data.purchaseDate!==undefined?{purchaseDate:parsed.data.purchaseDate}:{}), ...(parsed.data.supplierId!==undefined?{supplierId}:{}), ...(parsed.data.supplierId!==undefined||parsed.data.supplierName!==undefined?{supplierName}:{}),
       ...(parsed.data.paymentMethod!==undefined?{paymentMethod:parsed.data.paymentMethod||null}:{}), ...(parsed.data.notes!==undefined?{notes:parsed.data.notes||null}:{}), totalAmount:String(total)
     }).where(eq(purchases.id,current.id));
-  });
+  }); } catch (error) { if (error instanceof PurchaseOperationError) return json({ error: error.message }, 409); throw error; }
   return json(await purchaseDetail(user.businessId,current.id));
 }
 
@@ -158,13 +147,20 @@ export async function archivePurchase(request: Request, user: AuthUser) {
   const current = await purchaseDetail(user.businessId,parsed.data.id);
   if (!current) return json({ error:"Compra no encontrada" },404);
   const lineIds=current.lines.map((line)=>line.id);
-  if(lineIds.length){
-    const movements=await db.select().from(stockMovements).where(inArray(stockMovements.purchaseLineId,lineIds));
-    for(const line of current.lines){const movement=movements.find((row)=>row.purchaseLineId===line.id);if(!movement)continue;const after=await currentStock(line.materialId)-Number(movement.quantitySigned);if(after < -0.0001)return json({error:"No se puede borrar esta compra porque el material ya fue consumido y el stock quedaría negativo"},409);}
-  }
-  await db.transaction(async(tx)=>{
+  try { await db.transaction(async(tx)=>{
+    const materialsToLock = [...new Set(current.lines.map((line) => line.materialId))].sort();
+    for (const materialId of materialsToLock) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${materialId}))`);
+    for(const line of current.lines){
+      const [movement]=await tx.select().from(stockMovements).where(eq(stockMovements.purchaseLineId,line.id)).for("update").limit(1);
+      if(!movement)continue;
+      const [stockRow]=await tx.select({qty:sql<string>`coalesce(sum(${stockMovements.quantitySigned}),0)`}).from(stockMovements).where(and(eq(stockMovements.businessId,user.businessId),eq(stockMovements.materialId,line.materialId)));
+      const after=Number(stockRow?.qty??0)-Number(movement.quantitySigned);
+      if(after < -0.0001)throw new PurchaseOperationError("No se puede borrar esta compra porque el material ya fue consumido y el stock quedaría negativo");
+    }
     await tx.execute(sql`insert into deleted_records (business_id,entity_type,entity_id,snapshot) values (${user.businessId}::uuid,'PURCHASE',${current.id}::uuid,${JSON.stringify(current)}::jsonb) on conflict (business_id,entity_type,entity_id) do nothing`);
     if(lineIds.length)await tx.update(stockMovements).set({quantitySigned:"0"}).where(inArray(stockMovements.purchaseLineId,lineIds));
-  });
+  }); } catch (error) { if (error instanceof PurchaseOperationError) return json({ error: error.message }, 409); throw error; }
   return json({ok:true});
 }
+
+class PurchaseOperationError extends Error {}

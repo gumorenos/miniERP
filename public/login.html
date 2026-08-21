@@ -20,18 +20,15 @@
   </form>
 </section></main>
 <script>
-  const tokenKey="minierp.token";
   const params=new URLSearchParams(location.search);
   if(params.get("passwordChanged")==="1"){const s=document.getElementById("success");s.textContent="Contraseña actualizada. Ingresa nuevamente.";s.hidden=false}
-  const current=localStorage.getItem(tokenKey); if(current) location.replace("/");
   document.getElementById("form").addEventListener("submit",async(event)=>{
     event.preventDefault(); const button=document.getElementById("submit"); const error=document.getElementById("error"); error.hidden=true; button.disabled=true;
-    const response=await fetch("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:document.getElementById("email").value,password:document.getElementById("password").value})}).catch(()=>null);
+    const response=await fetch("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},credentials:"same-origin",body:JSON.stringify({email:document.getElementById("email").value,password:document.getElementById("password").value})}).catch(()=>null);
     if(!response){button.disabled=false;error.textContent="No se pudo conectar.";error.hidden=false;return}
     const body=await response.json().catch(()=>({}));
     if(!response.ok){button.disabled=false;error.textContent=body.error||"No se pudo entrar.";error.hidden=false;return}
-    localStorage.setItem(tokenKey,body.token);
-    const session=await fetch("/api/auth/session",{headers:{authorization:`Bearer ${body.token}`}}).then(r=>r.json()).catch(()=>({}));
+    const session=await fetch("/api/auth/session",{credentials:"same-origin"}).then(r=>r.json()).catch(()=>({}));
     location.replace(session.mustChangePassword?"/change-password.html":"/");
   });
 </script>

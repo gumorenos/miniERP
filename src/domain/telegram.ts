@@ -35,8 +35,16 @@ export function parseTelegramAllowedChatIds(value: string | undefined) {
   return new Set((value ?? "").split(",").map((item) => item.trim()).filter(Boolean));
 }
 
+export function parseTelegramAllowedUserIds(value: string | undefined) {
+  return parseTelegramAllowedChatIds(value);
+}
+
 export function isTelegramChatAllowed(chatId: string | number, allowedChatIds: Set<string>) {
   return allowedChatIds.has(String(chatId).trim());
+}
+
+export function isTelegramUserAllowed(userId: string | number, allowedUserIds: Set<string>) {
+  return allowedUserIds.has(String(userId).trim());
 }
 
 export function telegramDraftCanConfirm(draft: TelegramDraftSummary) {

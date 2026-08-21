@@ -302,8 +302,7 @@ function OrderDraftFields({ data, draft, customerId, setCustomerId, productId, s
 }
 
 async function fetchOrder(id: string): Promise<OrderDetail> {
-  const token = localStorage.getItem("minierp.token");
-  const response = await fetch("/api/orders/" + id, { headers: token ? { authorization: "Bearer " + token } : {} });
+  const response = await fetch("/api/orders/" + id, { credentials: "same-origin" });
   if (!response.ok) throw new Error("El pedido fue creado, pero no se pudo abrir su detalle.");
   return response.json() as Promise<OrderDetail>;
 }

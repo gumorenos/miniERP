@@ -118,19 +118,13 @@ export type Bootstrap = {
   orders: OrderSummary[];
 };
 
-const tokenKey = "minierp.token";
-
-export function getToken() { return localStorage.getItem(tokenKey); }
-export function setToken(token: string) { localStorage.setItem(tokenKey, token); }
+export function getToken() { return null; }
 export function clearToken() {
-  const token = localStorage.getItem(tokenKey);
-  if (token) void fetch("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({}), keepalive: true }).catch(() => undefined);
-  localStorage.removeItem(tokenKey);
+  void fetch("/api/auth/logout", { method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin", body: JSON.stringify({}), keepalive: true }).catch(() => undefined);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...options.headers } });
+  const response = await fetch(path, { ...options, credentials: "same-origin", headers: { "content-type": "application/json", ...options.headers } });
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
     const raw = await response.text().catch(() => "");
@@ -147,7 +141,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 async function login(email: string, password: string) {
   const result = await request<{ token: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-  setToken(result.token);
   const session = await request<{ mustChangePassword: boolean }>("/api/auth/session");
   if (session.mustChangePassword) window.location.replace("/change-password.html");
   return result;
