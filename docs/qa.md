@@ -44,6 +44,19 @@ E2E_BASE_URL=http://127.0.0.1:${APP_HOST_PORT} npm run test:e2e
 
 The fixture service refuses to run unless `E2E_FIXTURES_CONFIRM=isolated-qa-db`, requires the target application user to exist, and refuses to seed a business that already contains products, materials or orders. Never run it against a real pilot database.
 
+## Authentication smoke diagnostic
+
+For a deploy smoke using a real pilot account, run:
+
+```sh
+AUTH_SMOKE_BASE_URL=https://prueba.gumorenos.space \
+  APP_USER_EMAIL='pilot@example.com' \
+  APP_USER_PASSWORD='use-a-secret-from-the-password-manager' \
+  npm run smoke:auth
+```
+
+The command never prints the password or session token. It distinguishes malformed input (`AUTH_PAYLOAD_INVALID`, HTTP 400), invalid credentials (`AUTH_CREDENTIALS_INVALID`, HTTP 401), temporary-password access (`AUTH_PASSWORD_CHANGE_REQUIRED`) and successful operational access. Do not put real credentials in Git or Telegram messages.
+
 ## Authentication QA
 
 For pilot hardening validate at minimum:
