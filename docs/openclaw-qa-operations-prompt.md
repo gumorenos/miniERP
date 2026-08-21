@@ -7,7 +7,7 @@ QA + DEPLOY CONDICIONADO — miniERP
 
 Repo: gumorenos/miniERP
 Rama: codex/capture-operational-confirmation
-SHA exacto: 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
+SHA exacto: fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
 Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
@@ -16,8 +16,8 @@ OpenClaw solo hace QA, backup y deploy. No cambies código, no hagas commits/mer
 
 1. Verifica que el SHA exacto exista:
 git fetch origin refs/heads/codex/capture-operational-confirmation
-git cat-file -t 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
-git merge-base --is-ancestor 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0 FETCH_HEAD
+git cat-file -t fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
+git merge-base --is-ancestor fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7 FETCH_HEAD
 Si falla cualquiera: STOP. No uses otro SHA ni el HEAD como fallback.
 
 2. En worktree y PostgreSQL aislados ejecuta:
@@ -47,7 +47,7 @@ docker build
 5. Solo si todo pasa:
 - crea backup PostgreSQL
 - etiqueta imagen actual para rollback
-- despliega EXACTAMENTE el SHA 8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0
+- despliega EXACTAMENTE el SHA fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
 - aplica migraciones
 - verifica healthy y /api/health=200
 - ejecuta smoke autenticado y no autenticado usando una cuenta piloto válida, no las variables bootstrap vacías o ya rotadas
