@@ -1,6 +1,6 @@
 # Contexto de continuidad — miniERP
 
-Última actualización: 2026-08-21
+Última actualización: 2026-08-23
 
 ## Proyecto y límites
 
@@ -14,7 +14,7 @@
 
 - SHA exacto de código para la próxima validación: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`.
 - El SHA local original `b37dfea6a5da0caab8e9c3dc7e9dfa6987a90ba1` no existía en GitHub. Su estado fue publicado correctamente como `8da2c1b...` con padre remoto `81d0a279...`.
-- Los commits posteriores de la rama son únicamente documentación. OpenClaw debe probar y desplegar el SHA `8da2c1b...`, no el HEAD documental ni otro SHA.
+- Los commits posteriores de la rama incluyen documentación; OpenClaw debe probar y desplegar exactamente `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`, no el HEAD documental ni otro SHA.
 - Producción no fue tocada durante la corrección del bloqueo.
 
 ## Qué incluye el candidato
@@ -38,21 +38,16 @@
 
 ## Estado de QA y deploy del candidato
 
-OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. El siguiente candidato añade el diagnóstico de smoke: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`:
+OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. En el candidato `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` se añadió el diagnóstico de smoke:
 
 - QA aislado: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
-- Deploy del candidato: intentado, pero revertido porque el smoke autenticado devolvió HTTP 400.
-- Smoke no autenticado y health: PASS.
-- Producción quedó correctamente en `de5d3f6f5f088421fee8f3030652808076965656`.
-- Rollback: PASS.
-- Backup: `/home/ubuntu/backups/minierp-samiiwara/postgres-pre-8da2c1b-20260821T150252Z.sql.gz`.
-- Imagen rollback: `minierp_samiiwara_prod-app:rollback-de5d3f6-20260821T150252Z`.
+- Smoke autenticado en QA: `AUTH_SMOKE_PASS`.
+- Deploy productivo: bloqueado antes de backup porque `APP_USER_PASSWORD` no está configurado en el entorno productivo.
+- No se aplicaron migraciones ni se tocó producción; health público sigue 200 y producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
 
 ## Próximo paso obligatorio
 
-No cambiar código todavía. Capturar el cuerpo exacto del HTTP 400 y validar las credenciales/payload del smoke. En este código, contraseña incorrecta produce 401; HTTP 400 indica correo inválido/vacío, contraseña ausente o payload inválido.
-
-Después de contar con credenciales piloto válidas o ejecutar un reset controlado del usuario mediante el servicio one-shot `bootstrap-user`, repetir QA/deploy condicionado del SHA exacto `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`. No inventar credenciales ni dejar bootstrap secrets permanentes en `.env.production`.
+El siguiente paso no requiere cambios de código: disponer de una cuenta piloto válida para el smoke productivo. Puede ser la contraseña permanente guardada en el gestor de contraseñas o un reset one-shot controlado mediante `bootstrap-user` directamente en el VPS. No inventar credenciales, no enviarlas por Telegram y dejar vacíos los valores bootstrap después de la operación. Luego repetir el deploy condicionado del SHA exacto `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`.
 
 ## Después de un QA/deploy PASS
 
@@ -72,4 +67,4 @@ Después de contar con credenciales piloto válidas o ejecutar un reset controla
 
 ## Regla de continuidad
 
-Antes de actuar, verificar el HEAD remoto y conservar como referencia el SHA canónico `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. No reemplazarlo silenciosamente por el HEAD de la rama, no modificar producción sin QA PASS y no volver a conectar OpenClaw al producto.
+Antes de actuar, verificar el HEAD remoto y conservar como referencia el SHA canónico `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`. No reemplazarlo silenciosamente por el HEAD de la rama, no modificar producción sin QA PASS y no volver a conectar OpenClaw al producto.
