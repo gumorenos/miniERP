@@ -62,6 +62,7 @@ El siguiente paso no requiere cambios de código: disponer de una cuenta piloto 
 - `docs/qa-pendiente.md`: gates pendientes e histórico de despliegues.
 - `docs/openclaw-qa-operations-prompt.md`: prompt detallado.
 - `docs/openclaw-qa-prompt.md`: prompt compacto para Telegram.
+- Ambos prompts OpenClaw comienzan ahora con contexto mínimo explícito: proyecto, objetivo, SHA, estado actual, límites y criterio de STOP.
 - `docs/telegram-capture.md`: contrato del canal Telegram.
 - `docs/authentication.md`: sesión y autenticación web.
 
