@@ -1,9 +1,23 @@
-# Prompt OpenClaw — hardening miniERP
+# Prompt OpenClaw — QA y deploy condicionado de miniERP
 
 Enviar por Telegram:
 
 ```text
-QA + DEPLOY CONDICIONADO — miniERP
+CONTEXTO DE LA TAREA
+
+Estamos trabajando en miniERP/Samiiwara, una aplicación para gestionar un taller. Esta es una tarea de release validation posterior al code review. OpenClaw solo ejecuta QA, backup y deploy condicionado; ChatGPT desarrolla. No modifiques código, no hagas commits/fixes y no integres OpenClaw al runtime.
+
+OBJETIVO
+
+Validar y desplegar, solo con todos los gates en PASS, el candidato que incorpora:
+- transacciones y locks contra doble consumo/stock negativo;
+- idempotencia de operaciones;
+- sesión web con cookie HttpOnly;
+- CSP/HSTS/Permissions-Policy;
+- autorización Telegram por chat y usuario;
+- script diagnóstico `npm run smoke:auth`.
+
+CANDIDATO EXACTO
 
 Repo: gumorenos/miniERP
 Rama: codex/capture-operational-confirmation
@@ -12,51 +26,57 @@ Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
-OpenClaw solo hace QA, backup y deploy. No cambies código, no hagas commits/merge/fixes y no integres OpenClaw al runtime. No uses producción para probar.
+El intento anterior pasó QA pero no desplegó porque producción no tenía APP_USER_PASSWORD. Esa condición debe verificarse explícitamente; no debes inventar credenciales ni usar valores vacíos.
 
-1. Verifica que el SHA exacto exista:
-git fetch origin refs/heads/codex/capture-operational-confirmation
-git cat-file -t fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
-git merge-base --is-ancestor fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7 FETCH_HEAD
-Si falla cualquiera: STOP. No uses otro SHA ni el HEAD como fallback.
+REGLAS DE SEGURIDAD
 
-2. En worktree y PostgreSQL aislados ejecuta:
-npm ci
-npm run qa
-migraciones desde cero y sobre copia de producción
-npm run test:e2e
-docker build
+- Verifica el SHA exacto con fetch, cat-file y merge-base.
+- Si falla: STOP, sin fallback a otro SHA o HEAD.
+- Usa worktree y PostgreSQL aislados para QA.
+- No uses producción para pruebas destructivas.
+- No modifiques código, commits, ramas ni migraciones manualmente.
+- No muestres contraseñas, tokens, cookies ni secretos en el reporte.
+- OpenClaw no debe quedar conectado al runtime funcional.
 
-3. Verifica:
-- confirmación transaccional NEW_PURCHASE, NEW_EXPENSE y STOCK_ADJUSTMENT
-- idempotencia/concurrencia de esos borradores
-- stock negativo bajo concurrencia
-- corte concurrente e idempotente, sin doble consumo de tela
-- envío/recepción concurrente de bordado, sin estados/historial huérfanos
-- ensamblaje y ready-delivery concurrentes, sin doble consumo
-- ajustes manuales y edición/anulación de compras bajo concurrencia
-- rollback si falla una operación intermedia
+QA AISLADO
+
+Ejecuta:
+- npm ci
+- npm run qa
+- migraciones desde cero
+- migraciones sobre copia de producción
+- npm run test:e2e
+- concurrencia/idempotencia de compras, gastos, ajustes, corte, bordado, ensamblaje y ready-delivery
+- rechazo de stock negativo
 - callbacks Telegram simulados
-- sesión web por cookie HttpOnly, sin token en localStorage
-- headers CSP/HSTS/Permissions-Policy
-- Telegram rechaza usuarios fuera de TELEGRAM_ALLOWED_USER_IDS
-- OpenClaw no está conectado al runtime
+- verificación de cookies HttpOnly, ausencia de token en localStorage y headers CSP/HSTS/Permissions-Policy
+- docker build
 
-4. Si falla cualquier gate: NO despliegues. Reporta FAIL, SHA, comando y error.
+SMOKE AUTENTICADO
 
-5. Solo si todo pasa:
-- crea backup PostgreSQL
-- etiqueta imagen actual para rollback
-- despliega EXACTAMENTE el SHA fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
-- aplica migraciones
-- verifica healthy y /api/health=200
-- ejecuta smoke autenticado y no autenticado usando una cuenta piloto válida, no las variables bootstrap vacías o ya rotadas
-- captura siempre status y cuerpo de la respuesta del login y de la primera llamada autenticada
-- interpreta HTTP 400 como payload inválido (correo vacío/mal formado, contraseña ausente u otro error de esquema) y HTTP 401 como credenciales no válidas
-- si no existe una cuenta piloto válida, reporta AUTH_SMOKE_BLOCKED y no despliegues
-- si Telegram no tiene credenciales reales, reporta no probado; no inventes secretos
+Ejecuta `npm run smoke:auth` contra producción usando una cuenta piloto válida disponible directamente en el VPS.
 
-6. Si deploy/smoke falla, revierte de forma controlada usando backup/imagen y reporta los identificadores.
+Interpretación:
+- AUTH_SMOKE_PASS: continúa.
+- AUTH_SMOKE_BLOCKED: APP_USER_PASSWORD ausente; STOP y no despliegues.
+- AUTH_PAYLOAD_INVALID: STOP y reporta.
+- AUTH_CREDENTIALS_INVALID: STOP y reporta.
+- AUTH_PASSWORD_CHANGE_REQUIRED: STOP y reporta.
+- cualquier otro AUTH_*: STOP.
 
-Respuesta breve: PASS/FAIL, SHA, tests, migraciones, concurrencia, Docker, deploy, smoke y bloqueos.
+No envíes credenciales por Telegram ni las imprimas en el informe.
+
+DEPLOY CONDICIONADO
+
+Solo si QA, smoke auth y Docker pasan:
+1. crea backup PostgreSQL;
+2. etiqueta imagen/commit previo para rollback;
+3. despliega EXACTAMENTE fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7;
+4. aplica migraciones;
+5. verifica contenedores healthy, /api/health=200 y smoke autenticado/no autenticado;
+6. si algo falla, ejecuta rollback controlado y reporta backup, imagen previa y estado final.
+
+RESPUESTA BREVE
+
+PASS/FAIL, SHA, QA, migraciones, concurrencia, auth smoke, Docker, deploy, health, rollback y bloqueos.
 ```
