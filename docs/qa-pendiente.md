@@ -1,6 +1,6 @@
 # QA pendiente — miniERP / Samiiwara
 
-Última actualización: 2026-08-21
+Última actualización: 2026-08-23
 
 ## Base revisada
 
@@ -13,7 +13,7 @@
 
 - OpenClaw confirmó PASS de QA, migraciones, E2E, concurrencia/idempotencia, callbacks Telegram simulados y Docker antes del deploy.
 - Healthcheck de producción: PASS.
-- Smoke de login real: pendiente porque las credenciales disponibles devolvieron `400`; no se inventaron credenciales ni se tocó producción durante este trabajo.
+- Smoke autenticado del candidato: bloqueado antes de ejecutar porque `APP_USER_PASSWORD` no está configurado en producción; no se inventaron credenciales ni se tocó producción.
 
 ## Validaciones ejecutadas
 
@@ -28,11 +28,11 @@
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
 - Candidato siguiente exacto: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` (añade `npm run smoke:auth` y documentación; requiere repetir QA antes de desplegar).
-- Estado: QA aislado PASS; deploy intentado y revertido por smoke autenticado.
+- Estado: QA aislado PASS; deploy bloqueado antes de backup por `AUTH_SMOKE_BLOCKED`.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local directa: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
 - QA OpenClaw: migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers y Docker: PASS.
-- Bloqueo operativo: smoke autenticado devolvió HTTP 400 con las credenciales configuradas. En el candidato, credenciales inválidas producen 401; 400 requiere revisar payload/credenciales bootstrap.
+- Bloqueo operativo actual: el entorno productivo tiene `APP_USER_PASSWORD` vacío/no configurado. El script `smoke:auth` detuvo correctamente el flujo antes de enviar credenciales vacías.
 - Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
 - Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
 - El E2E requiere una base PostgreSQL efímera para ejecutarse.
@@ -45,8 +45,9 @@
 - [x] Ejecutar concurrencia de ajustes manuales, edición/anulación de compras y consumos de stock compartido; confirmar que nunca quede stock negativo.
 - [x] Repetir migraciones desde cero y sobre una copia de producción.
 - [x] Docker build, headers, cookies, Telegram simulado y ausencia de integración runtime OpenClaw.
-- [ ] Capturar el cuerpo exacto del HTTP 400 del smoke autenticado y validar correo/password bootstrap.
-- [ ] Con credenciales piloto válidas, repetir deploy controlado y smoke autenticado del SHA exacto.
+- [x] Confirmar que el bloqueo actual es `AUTH_SMOKE_BLOCKED` por `APP_USER_PASSWORD` ausente, antes de tocar producción.
+- [ ] Disponer de una cuenta piloto válida mediante credencial permanente o reset one-shot controlado en el VPS.
+- [ ] Con credenciales piloto válidas, repetir deploy controlado y `npm run smoke:auth` del SHA exacto.
 - [ ] Solo con todos los gates en PASS: mantener el candidato desplegado.
 
 ## QA aislado completado por OpenClaw
@@ -87,7 +88,7 @@ El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el e
 
 ## Condición de aprobación
 
-El candidato `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0` pasó QA, pero no quedó aprobado para producción porque el smoke autenticado devolvió HTTP 400. Producción fue revertida a `de5d3f6f5f088421fee8f3030652808076965656`. No activar Telegram con datos reales hasta cerrar el smoke autenticado.
+El candidato `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` pasó QA, pero no quedó desplegado porque el smoke autenticado fue bloqueado por falta de `APP_USER_PASSWORD` en producción. No se creó backup ni se aplicaron migraciones. Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
 
 ## Comandos sugeridos
 
