@@ -18,7 +18,10 @@
 
 ## Incremento actual: captura conversacional multi-turno
 
-Implementado localmente y pendiente de publicar/validar con OpenClaw:
+Publicado como candidato pendiente de validar con OpenClaw:
+
+- Rama: `qa/miniERP-conversation-multiturn`.
+- SHA funcional exacto: `72f6d5a932f65310357d6517da88cab95a52f70a`.
 
 - `capture_drafts.conversation_key` para asociar mensajes de una conversación.
 - Nueva tabla `capture_draft_messages` para idempotencia por mensaje y auditoría del texto recibido.
@@ -40,7 +43,7 @@ Implementado localmente y pendiente de publicar/validar con OpenClaw:
 
 ## Siguiente gate
 
-Publicar un candidato basado en el SHA de producción, verificar que el commit exista en GitHub y entregar a OpenClaw un prompt con ese SHA exacto. OpenClaw debe ejecutar migración 0016, QA aislado, E2E, concurrencia/idempotencia de mensajes y Docker. No desplegar hasta que todos los gates pasen.
+Verificar nuevamente el SHA funcional en OpenClaw y ejecutar migración 0016, QA aislado, E2E, concurrencia/idempotencia de mensajes y Docker. No desplegar hasta que todos los gates pasen.
 
 ## Próximas etapas después del multi-turno
 

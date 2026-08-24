@@ -1,82 +1,26 @@
-# Prompt OpenClaw — QA y deploy condicionado de miniERP
+# Prompt OpenClaw — captura conversacional multi-turno
 
-Enviar por Telegram:
+Enviar por Telegram. El SHA ya fue publicado y verificado antes de enviar este prompt.
 
 ```text
-CONTEXTO DE LA TAREA
+QA + DEPLOY CONDICIONADO — miniERP
 
-Estamos trabajando en miniERP/Samiiwara, una aplicación para gestionar un taller. Esta es una tarea de release validation posterior al code review. OpenClaw solo ejecuta QA, backup y deploy condicionado; ChatGPT desarrolla. No modifiques código, no hagas commits/fixes y no integres OpenClaw al runtime.
-
-OBJETIVO
-
-Validar y desplegar, solo con todos los gates en PASS, el candidato que incorpora:
-- transacciones y locks contra doble consumo/stock negativo;
-- idempotencia de operaciones;
-- sesión web con cookie HttpOnly;
-- CSP/HSTS/Permissions-Policy;
-- autorización Telegram por chat y usuario;
-- script diagnóstico `npm run smoke:auth` con fallback de cookie compatible entre runtimes.
-
-CANDIDATO EXACTO
+Contexto: miniERP es el ERP de Samiiwara. Producción está sana en b6b51b0 (no la uses para pruebas). OpenClaw solo hace QA, backup y deploy; no debe integrarse al runtime ni tocar Telegram/WhatsApp funcional.
 
 Repo: gumorenos/miniERP
-Rama: codex/capture-operational-confirmation
-SHA exacto: 98f771cdf6838cf00994546cbb29b20d4fdecc06
-Producción actual: de5d3f6f5f088421fee8f3030652808076965656
-URL: https://prueba.gumorenos.space
+Rama QA: qa/miniERP-conversation-multiturn
+SHA exacto candidato: 72f6d5a932f65310357d6517da88cab95a52f70a
+Producción: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
-El intento anterior pasó QA pero no desplegó porque producción no tenía APP_USER_PASSWORD. Esa condición debe verificarse explícitamente; no debes inventar credenciales ni usar valores vacíos.
+1) Verifica el SHA exacto con fetch, cat-file y checkout detached. Si no existe o no coincide, STOP. No uses otro SHA, HEAD ni la cabeza de la rama como fallback.
+2) En worktree y PostgreSQL aislados ejecuta npm ci, npm run qa, migraciones desde cero e idempotentes sobre copia, test:e2e y docker build.
+3) Verifica migración 0016: conversation_key, capture_draft_messages y backfill de mensajes históricos.
+4) Prueba multi-turno: mensaje incompleto -> respuesta posterior -> mismo draftId -> preguntas/botones correctos -> confirmación. Repite ambos mensajes y confirma que no duplica borrador ni operación. Prueba dos respuestas concurrentes y confirmación concurrente.
+5) Verifica callbacks Telegram simulados, stock negativo, transacciones/idempotencia existentes y ausencia de referencias/dependencia de OpenClaw en src/runtime.
+6) Si falla cualquier gate: NO despliegues. Reporta FAIL, SHA, comando y error.
+7) Solo si todo pasa: backup PostgreSQL, despliega EXACTAMENTE el SHA candidato, aplica migraciones, health local/público y smoke autenticado. Si faltan credenciales reales, no inventes: detén el deploy y reporta el bloqueo.
+8) Si deploy/smoke falla: rollback controlado a la imagen/commit anterior, verifica health y reporta backup, rollback y producción final.
 
-REGLAS DE SEGURIDAD
-
-- Verifica el SHA exacto con fetch, cat-file y merge-base.
-- Si falla: STOP, sin fallback a otro SHA o HEAD.
-- Usa worktree y PostgreSQL aislados para QA.
-- No uses producción para pruebas destructivas.
-- No modifiques código, commits, ramas ni migraciones manualmente.
-- No muestres contraseñas, tokens, cookies ni secretos en el reporte.
-- OpenClaw no debe quedar conectado al runtime funcional.
-
-QA AISLADO
-
-Ejecuta:
-- npm ci
-- npm run qa
-- migraciones desde cero
-- migraciones sobre copia de producción
-- npm run test:e2e
-- concurrencia/idempotencia de compras, gastos, ajustes, corte, bordado, ensamblaje y ready-delivery
-- rechazo de stock negativo
-- callbacks Telegram simulados
-- verificación de cookies HttpOnly, ausencia de token en localStorage y headers CSP/HSTS/Permissions-Policy
-- docker build
-
-SMOKE AUTENTICADO
-
-Ejecuta `npm run smoke:auth` contra producción usando una cuenta piloto válida disponible directamente en el VPS.
-
-Interpretación:
-- AUTH_SMOKE_PASS: continúa.
-- AUTH_SMOKE_BLOCKED: APP_USER_PASSWORD ausente; STOP y no despliegues.
-- AUTH_PAYLOAD_INVALID: STOP y reporta.
-- AUTH_CREDENTIALS_INVALID: STOP y reporta.
-- AUTH_PASSWORD_CHANGE_REQUIRED: STOP y reporta.
-- cualquier otro AUTH_*: STOP.
-
-No envíes credenciales por Telegram ni las imprimas en el informe.
-
-DEPLOY CONDICIONADO
-
-Solo si QA, smoke auth y Docker pasan:
-1. crea backup PostgreSQL;
-2. etiqueta imagen/commit previo para rollback;
-3. despliega EXACTAMENTE 98f771cdf6838cf00994546cbb29b20d4fdecc06;
-4. aplica migraciones;
-5. verifica contenedores healthy, /api/health=200 y smoke autenticado/no autenticado;
-6. si algo falla, ejecuta rollback controlado y reporta backup, imagen previa y estado final.
-
-RESPUESTA BREVE
-
-PASS/FAIL, SHA, QA, migraciones, concurrencia, auth smoke, Docker, deploy, health, rollback y bloqueos.
+Respuesta corta: PASS/FAIL, SHA, pruebas, migraciones, multi-turno, deploy sí/no, smoke, rollback y bloqueos. No incluyas secretos, cookies ni tokens.
 ```

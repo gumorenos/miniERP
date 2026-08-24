@@ -11,7 +11,10 @@
 
 ## Candidato pendiente: captura conversacional multi-turno
 
-Estado: implementado y validado localmente; aún no publicado, probado por OpenClaw ni desplegado.
+Estado: publicado y validado localmente; aún no probado por OpenClaw ni desplegado.
+
+- Rama: `qa/miniERP-conversation-multiturn`.
+- SHA funcional exacto: `72f6d5a932f65310357d6517da88cab95a52f70a`.
 
 Cambios principales:
 
