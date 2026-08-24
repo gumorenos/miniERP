@@ -12,9 +12,9 @@
 
 ## Candidato canónico
 
-- SHA exacto de código para la próxima validación: `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`.
+- SHA exacto de código para la próxima validación: `98f771cdf6838cf00994546cbb29b20d4fdecc06`.
 - El SHA local original `b37dfea6a5da0caab8e9c3dc7e9dfa6987a90ba1` no existía en GitHub. Su estado fue publicado correctamente como `8da2c1b...` con padre remoto `81d0a279...`.
-- Los commits posteriores de la rama incluyen documentación; OpenClaw debe probar y desplegar exactamente `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`, no el HEAD documental ni otro SHA.
+- Los commits posteriores de la rama incluyen documentación; OpenClaw debe probar y desplegar exactamente `98f771cdf6838cf00994546cbb29b20d4fdecc06`, no el HEAD documental ni otro SHA.
 - Producción no fue tocada durante la corrección del bloqueo.
 
 ## Qué incluye el candidato
@@ -30,7 +30,7 @@
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 45 pruebas en 11 archivos.
+- Vitest: PASS, 48 pruebas en 12 archivos (incluye 3 pruebas del fallback de cookie).
 - Build Vite: PASS.
 - `npm audit --omit=dev`: 0 vulnerabilidades.
 - `git diff --check`: PASS.
@@ -38,16 +38,17 @@
 
 ## Estado de QA y deploy del candidato
 
-OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. En el candidato `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` se añadió el diagnóstico de smoke:
+OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. En el candidato `98f771cdf6838cf00994546cbb29b20d4fdecc06` se añadió el diagnóstico de smoke:
 
-- QA aislado: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
-- Smoke autenticado en QA: `AUTH_SMOKE_PASS`.
-- Deploy productivo: bloqueado antes de backup porque `APP_USER_PASSWORD` no está configurado en el entorno productivo.
+- QA aislado previo: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
+- Fix local del harness: PASS; 48/48 tests, incluyendo 3 pruebas del fallback de cookie.
+- El nuevo SHA aún requiere QA aislado de OpenClaw y smoke autenticado productivo.
+- Deploy productivo anterior: bloqueado; no se aplicaron migraciones ni se tocó producción.
 - No se aplicaron migraciones ni se tocó producción; health público sigue 200 y producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
 
 ## Próximo paso obligatorio
 
-El siguiente paso no requiere cambios de código: disponer de una cuenta piloto válida para el smoke productivo. Puede ser la contraseña permanente guardada en el gestor de contraseñas o un reset one-shot controlado mediante `bootstrap-user` directamente en el VPS. No inventar credenciales, no enviarlas por Telegram y dejar vacíos los valores bootstrap después de la operación. Luego repetir el deploy condicionado del SHA exacto `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`.
+El siguiente paso requiere que OpenClaw repita QA sobre el nuevo SHA y luego disponga de una cuenta piloto válida para el smoke productivo. Puede ser la contraseña permanente guardada en el gestor de contraseñas o un reset one-shot controlado mediante `bootstrap-user` directamente en el VPS. No inventar credenciales, no enviarlas por Telegram y dejar vacíos los valores bootstrap después de la operación. Luego repetir el deploy condicionado del SHA exacto `98f771cdf6838cf00994546cbb29b20d4fdecc06`.
 
 ## Después de un QA/deploy PASS
 
@@ -68,4 +69,4 @@ El siguiente paso no requiere cambios de código: disponer de una cuenta piloto 
 
 ## Regla de continuidad
 
-Antes de actuar, verificar el HEAD remoto y conservar como referencia el SHA canónico `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7`. No reemplazarlo silenciosamente por el HEAD de la rama, no modificar producción sin QA PASS y no volver a conectar OpenClaw al producto.
+Antes de actuar, verificar el HEAD remoto y conservar como referencia el SHA canónico `98f771cdf6838cf00994546cbb29b20d4fdecc06`. No reemplazarlo silenciosamente por el HEAD de la rama, no modificar producción sin QA PASS y no volver a conectar OpenClaw al producto.
