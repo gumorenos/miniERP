@@ -28,7 +28,7 @@
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
 - Candidato siguiente exacto: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca` (lee `Set-Cookie` desde headers HTTP crudos y añade 3 tests; requiere repetir QA antes de desplegar).
-- Rama QA dedicada e inmutable para esta ejecución: `qa/miniERP-auth-cookie-fix-a92`; su HEAD debe ser exactamente `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
+- Rama QA dedicada fijada para esta ejecución: `qa/miniERP-auth-cookie-fix-a92`; su HEAD debe ser exactamente `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
 - Estado del candidato anterior: QA aislado PASS; deploy bloqueado por `AUTH_COOKIE_MISSING`. Nuevo candidato con fix de lectura cruda pendiente de QA.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local del candidato anterior: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
