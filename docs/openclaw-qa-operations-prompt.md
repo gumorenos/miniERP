@@ -1,82 +1,78 @@
-# Prompt OpenClaw — QA y deploy condicionado de miniERP
+# OpenClaw — QA y deploy condicionado de miniERP
 
-Enviar por Telegram:
+## Contexto
 
-```text
-CONTEXTO DE LA TAREA
+miniERP/Samiiwara es una aplicación para gestionar un taller. ChatGPT desarrolla; OpenClaw únicamente ejecuta testing, QA, backups y despliegue condicionado. No modificar código ni integrar OpenClaw al runtime.
 
-Estamos trabajando en miniERP/Samiiwara, una aplicación para gestionar un taller. Esta es una tarea de release validation posterior al code review. OpenClaw solo ejecuta QA, backup y deploy condicionado; ChatGPT desarrolla. No modifiques código, no hagas commits/fixes y no integres OpenClaw al runtime.
+## Candidato exacto
 
-OBJETIVO
+- Repositorio: `gumorenos/miniERP`.
+- Rama de referencia: `qa/miniERP-auth-cookie-fix-v2`.
+- SHA funcional exacto: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+- Producción previa: `de5d3f6f5f088421fee8f3030652808076965656`.
+- URL pública: `https://prueba.gumorenos.space`.
+- VPS: `/home/ubuntu/apps/minierp-samiiwara`.
 
-Validar y desplegar, solo con todos los gates en PASS, el candidato que incorpora:
-- transacciones y locks contra doble consumo/stock negativo;
-- idempotencia de operaciones;
-- sesión web con cookie HttpOnly;
-- CSP/HSTS/Permissions-Policy;
-- autorización Telegram por chat y usuario;
-- script diagnóstico `npm run smoke:auth` con fallback de cookie compatible entre runtimes.
+## Diagnóstico confirmado
 
-CANDIDATO EXACTO
+El commit productivo `de5d3f6…` implementa login con token JSON/Bearer y cliente con token en `localStorage`. Su endpoint de login no agrega `Set-Cookie`.
 
-Repo: gumorenos/miniERP
-Rama: codex/capture-operational-confirmation
-SHA exacto: 98f771cdf6838cf00994546cbb29b20d4fdecc06
-Producción actual: de5d3f6f5f088421fee8f3030652808076965656
-URL: https://prueba.gumorenos.space
-VPS: /home/ubuntu/apps/minierp-samiiwara
+El candidato `b6b51b0…` agrega `minierp_session`, autenticación web mediante cookie `HttpOnly`, login `private, no-store`, mejoras de seguridad/concurrencia y seguimiento conversacional.
 
-El intento anterior pasó QA pero no desplegó porque producción no tenía APP_USER_PASSWORD. Esa condición debe verificarse explícitamente; no debes inventar credenciales ni usar valores vacíos.
+Por ello, ejecutar el smoke nuevo que exige cookie contra producción antigua antes del deploy produce siempre `AUTH_COOKIE_MISSING`. No es un fallo del candidato: es un gate circular.
 
-REGLAS DE SEGURIDAD
+## Verificación Git
 
-- Verifica el SHA exacto con fetch, cat-file y merge-base.
-- Si falla: STOP, sin fallback a otro SHA o HEAD.
-- Usa worktree y PostgreSQL aislados para QA.
-- No uses producción para pruebas destructivas.
-- No modifiques código, commits, ramas ni migraciones manualmente.
-- No muestres contraseñas, tokens, cookies ni secretos en el reporte.
-- OpenClaw no debe quedar conectado al runtime funcional.
-
-QA AISLADO
-
-Ejecuta:
-- npm ci
-- npm run qa
-- migraciones desde cero
-- migraciones sobre copia de producción
-- npm run test:e2e
-- concurrencia/idempotencia de compras, gastos, ajustes, corte, bordado, ensamblaje y ready-delivery
-- rechazo de stock negativo
-- callbacks Telegram simulados
-- verificación de cookies HttpOnly, ausencia de token en localStorage y headers CSP/HSTS/Permissions-Policy
-- docker build
-
-SMOKE AUTENTICADO
-
-Ejecuta `npm run smoke:auth` contra producción usando una cuenta piloto válida disponible directamente en el VPS.
-
-Interpretación:
-- AUTH_SMOKE_PASS: continúa.
-- AUTH_SMOKE_BLOCKED: APP_USER_PASSWORD ausente; STOP y no despliegues.
-- AUTH_PAYLOAD_INVALID: STOP y reporta.
-- AUTH_CREDENTIALS_INVALID: STOP y reporta.
-- AUTH_PASSWORD_CHANGE_REQUIRED: STOP y reporta.
-- cualquier otro AUTH_*: STOP.
-
-No envíes credenciales por Telegram ni las imprimas en el informe.
-
-DEPLOY CONDICIONADO
-
-Solo si QA, smoke auth y Docker pasan:
-1. crea backup PostgreSQL;
-2. etiqueta imagen/commit previo para rollback;
-3. despliega EXACTAMENTE 98f771cdf6838cf00994546cbb29b20d4fdecc06;
-4. aplica migraciones;
-5. verifica contenedores healthy, /api/health=200 y smoke autenticado/no autenticado;
-6. si algo falla, ejecuta rollback controlado y reporta backup, imagen previa y estado final.
-
-RESPUESTA BREVE
-
-PASS/FAIL, SHA, QA, migraciones, concurrencia, auth smoke, Docker, deploy, health, rollback y bloqueos.
+```bash
+git fetch origin refs/heads/qa/miniERP-auth-cookie-fix-v2:refs/remotes/origin/qa/miniERP-auth-cookie-fix-v2
+git cat-file -t b6b51b0bc637e1b8504c0964c985f37ab96f67d0
+git merge-base --is-ancestor b6b51b0bc637e1b8504c0964c985f37ab96f67d0 refs/remotes/origin/qa/miniERP-auth-cookie-fix-v2
+git checkout --detach b6b51b0bc637e1b8504c0964c985f37ab96f67d0
+test "$(git rev-parse HEAD)" = "b6b51b0bc637e1b8504c0964c985f37ab96f67d0"
 ```
+
+Si cualquier verificación falla: STOP. No usar HEAD ni otro SHA como fallback.
+
+## Gates previos al deploy
+
+En worktree y PostgreSQL aislados:
+
+1. `npm ci`.
+2. `npm run qa`.
+3. Migraciones desde cero y segunda ejecución idempotente.
+4. Migraciones sobre copia de producción.
+5. `npm run test:e2e`.
+6. Concurrencia/idempotencia de compras, gastos, ajustes, corte, bordado, ensamblaje y entrega.
+7. Rechazo de stock negativo.
+8. Callbacks Telegram simulados.
+9. Docker build.
+10. Arrancar la aplicación del candidato exacto en un puerto de QA con base aislada o copia productiva.
+11. Ejecutar `npm run smoke:auth` contra esa instancia usando una cuenta válida del entorno aislado. Exigir `AUTH_SMOKE_PASS`, cookie `minierp_session`, sesión y acceso a bootstrap.
+
+El token Bearer legacy nunca sustituye el smoke de cookie del candidato.
+
+## Verificación de producción antigua
+
+Antes del deploy:
+
+- `/api/health` debe devolver 200.
+- La cuenta productiva puede verificarse con el mecanismo legacy vigente si existe autorización y credenciales privadas.
+- El login 200 sin `Set-Cookie` es esperado en `de5d3f6…`; no detener el deploy por esa ausencia.
+- Nunca imprimir credenciales, cookies o tokens.
+
+## Deploy y gate post-deploy
+
+Solo con todos los gates aislados en PASS:
+
+1. Crear backup PostgreSQL.
+2. Etiquetar imagen/commit anterior para rollback.
+3. Desplegar exactamente `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+4. Aplicar migraciones productivas.
+5. Verificar contenedor healthy y health local/público 200.
+6. Ejecutar `npm run smoke:auth` contra producción HTTPS.
+7. Exigir `AUTH_SMOKE_PASS` y cookie válida.
+8. Si falla health, login/cookie/session/bootstrap o cualquier verificación post-deploy, ejecutar rollback inmediato al SHA previo y reportar el estado final.
+
+## Reporte
+
+PASS/FAIL, SHA probado/desplegado, QA, migraciones, E2E, concurrencia, Docker, smoke auth del candidato aislado, smoke auth productivo post-deploy, backup, imagen de rollback, health y bloqueos.

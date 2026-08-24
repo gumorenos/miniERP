@@ -1,51 +1,70 @@
 # Contexto de continuidad — miniERP / Samiiwara
 
-Última actualización: 2026-08-24
+Última actualización: 2026-08-24.
 
-## Reglas de trabajo
+## Reglas
 
 - ChatGPT desarrolla el producto.
-- OpenClaw se usa únicamente para testing, QA, backups y deploy; no se integra al runtime.
-- Todo prompt para OpenClaw debe incluir contexto mínimo, candidato exacto y regla de no usar fallbacks.
-- No poner secretos en Telegram ni en este archivo.
+- OpenClaw solo ejecuta testing, QA, backups y deploy condicionado.
+- No integrar OpenClaw al runtime, Telegram ni WhatsApp.
+- Verificar siempre el SHA exacto en GitHub; no usar HEAD ni otro commit como fallback.
+- Nunca compartir contraseñas, cookies o tokens en Telegram.
 
-## Producción y candidato QA
+## Estado actual
 
-- Producción: `https://prueba.gumorenos.space`
-- Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656` hasta que OpenClaw confirme otro deploy.
-- Candidato exacto para la próxima QA: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
-- Rama QA dedicada: `qa/miniERP-auth-cookie-fix-v2`.
-- Este candidato incluye la mejora conversacional y el refuerzo del smoke auth. OpenClaw debe verificar SHA y checkout detached exactos; no usar `a92…` ni otro fallback.
+- Repositorio: `gumorenos/miniERP`.
+- Producción: `https://prueba.gumorenos.space`.
+- SHA productivo: `de5d3f6f5f088421fee8f3030652808076965656`.
+- Candidato funcional exacto: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+- Rama de referencia: `qa/miniERP-auth-cookie-fix-v2`.
+- Los commits posteriores en la rama pueden actualizar documentación; el candidato funcional sigue siendo b6b51b0.
 
-## Trabajo realizado en esta tarea
+## Diagnóstico comprobado del bloqueo AUTH_COOKIE_MISSING
 
-Se implementó la siguiente mejora, todavía no desplegada:
+La producción actual `de5d3f6…` usa token Bearer y guarda el token en `localStorage`. Su login no envía `Set-Cookie`.
 
-- La captura conversacional traduce campos internos a etiquetas legibles en español.
-- Los borradores incompletos o ambiguos generan preguntas concretas y ejemplos para que la usuaria responda en un solo mensaje.
-- Una fecha, cliente, producto o material ambiguo bloquea la confirmación hasta que se aclare.
-- La lógica de seguimiento vive en el dominio de captura y puede reutilizarse desde Telegram o un futuro adaptador WhatsApp.
-- No se agregó dependencia de OpenClaw, Telegram real ni WhatsApp.
+El candidato `b6b51b0…` cambia la autenticación a cookie `HttpOnly` y sí agrega `Set-Cookie`.
 
-Validación local de esta mejora:
+Los prompts anteriores exigían el smoke nuevo con cookie contra producción vieja antes de desplegar el código nuevo. Ese gate era circular y nunca podía aprobar.
 
-- ESLint: PASS
-- TypeScript: PASS
-- Vitest: PASS, 50/50 pruebas
-- Vite build: PASS
+Flujo correcto:
 
-## Siguiente paso recomendado
+1. Validar el candidato aislado, incluyendo `npm run smoke:auth` contra la instancia candidata.
+2. En producción antigua comprobar health y, si aplica, el login legacy; no exigir cookie.
+3. Con todo QA en PASS, crear backup e imagen de rollback.
+4. Desplegar exactamente `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+5. Ejecutar el smoke estricto de cookie contra producción ya actualizada.
+6. Si falla el smoke post-deploy, hacer rollback inmediato.
 
-1. Ejecutar OpenClaw sobre `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`; si todos los gates y auth smoke pasan, desplegar exactamente ese SHA.
-2. Después del deploy, validar Telegram real cuando existan secretos y autorización.
-3. Después implementar conversación multi-turno real: asociar una respuesta posterior al borrador pendiente correcto, reparsear/mezclar datos y volver a mostrar confirmación sin duplicar registros.
-4. Luego configurar Telegram real con secretos privados y prueba sintética; WhatsApp queda para cuando exista contacto y proveedor.
+El token Bearer legacy no puede sustituir la validación de cookie del candidato.
 
-## Estado de OpenClaw
+## Funcionalidad incluida
 
-OpenClaw no es parte de la aplicación. Si reporta un SHA inexistente, cookie ausente, AUTH_* distinto de PASS o cualquier gate fallido, no debe hacer deploy ni usar otro SHA como sustituto.
+- Hardening transaccional, locks e idempotencia para operaciones de taller.
+- Protección contra stock negativo y doble consumo.
+- Sesión browser mediante cookie `HttpOnly`; eliminación de token en `localStorage`.
+- Headers de seguridad y autorización Telegram por chat/usuario.
+- Captura conversacional para pedido, cliente, compra, gasto y ajuste.
+- Preguntas legibles para datos faltantes o ambiguos y bloqueo de confirmación hasta aclararlos.
+- Smoke auth con extracción de `Set-Cookie`, `rawHeaders` y representaciones combinadas.
 
+## QA existente
 
-## Diagnóstico del bloqueo AUTH_COOKIE_MISSING
+- OpenClaw ya confirmó 51/51 tests, lint, typecheck, build, 0 vulnerabilidades.
+- Migraciones: 15/15 desde cero, idempotencia y copia de producción PASS.
+- E2E, concurrencia, stock negativo y Docker PASS.
+- Falta repetir el flujo con el smoke cookie en el entorno correcto y, si pasa, desplegar.
 
-El login fue aceptado pero OpenClaw no encontró `minierp_session`. No se usará el token JSON como sustituto, porque eso ocultaría un fallo real de sesión por cookie. El siguiente QA debe reportar si la cookie aparece en headers normales o en `rawHeaders`, sin revelar tokens.
+## Próximos pasos
+
+1. Ejecutar el prompt actualizado de OpenClaw sobre b6b51b0.
+2. Con deploy PASS, probar login/cookie real y activar Telegram con secretos privados.
+3. Implementar conversación multi-turno real sin duplicados.
+4. Evaluar WhatsApp cuando exista contacto con la usuaria.
+
+## Documentos
+
+- `docs/openclaw-qa-prompt.md`: prompt compacto para Telegram.
+- `docs/openclaw-qa-operations-prompt.md`: procedimiento detallado.
+- `docs/qa-pendiente.md`: gates y pendientes.
+- `docs/roadmap.md`: roadmap funcional.

@@ -1,105 +1,49 @@
 # QA pendiente — miniERP / Samiiwara
 
-Última actualización: 2026-08-23
+Última actualización: 2026-08-24.
 
-## Base revisada
+## Estado verificado
 
-- Rama validada/desplegada: `codex/capture-operational-confirmation`
-- Commit exacto: `de5d3f6f5f088421fee8f3030652808076965656`
-- Producción: desplegada y saludable en `https://prueba.gumorenos.space`.
-- OpenClaw: usado únicamente para QA y despliegue; no forma parte del runtime.
+- Producción: `https://prueba.gumorenos.space`.
+- SHA productivo anterior: `de5d3f6f5f088421fee8f3030652808076965656`.
+- Candidato funcional exacto: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+- Rama de referencia: `qa/miniERP-auth-cookie-fix-v2`.
+- OpenClaw solo realiza QA, backups y deploy; no forma parte del runtime.
 
-## Estado de producción
+## Causa raíz de los bloqueos anteriores
 
-- OpenClaw confirmó PASS de QA, migraciones, E2E, concurrencia/idempotencia, callbacks Telegram simulados y Docker antes del deploy.
-- Healthcheck de producción: PASS.
-- Smoke autenticado del candidato: bloqueado antes de ejecutar porque `APP_USER_PASSWORD` no está configurado en producción; no se inventaron credenciales ni se tocó producción.
+Producción `de5d3f6…` usa autenticación legacy por token Bearer y no emite `Set-Cookie`. El candidato `b6b51b0…` introduce la cookie `minierp_session`.
 
-## Validaciones ejecutadas
+El smoke estricto de cookie debe ejecutarse antes del deploy contra la aplicación candidata aislada y después del deploy contra producción actualizada. No debe ejecutarse contra la producción legacy como requisito previo, porque fallará siempre con `AUTH_COOKIE_MISSING`.
 
-- TypeScript (`tsc --noEmit`): PASS.
-- ESLint: PASS.
-- Vitest: PASS, 38 pruebas en 11 archivos.
-- Build Vite: PASS.
-- `git diff --check`: PASS.
+## QA ya ejecutado sobre b6b51b0
 
-## Candidato post-code-review: hardening transaccional
+- [x] SHA remoto y checkout detached exactos.
+- [x] `npm ci`: PASS; 0 vulnerabilidades.
+- [x] Lint y typecheck: PASS.
+- [x] Vitest: PASS, 51/51 pruebas.
+- [x] Build: PASS.
+- [x] Migraciones desde cero: PASS, 15/15.
+- [x] Migraciones idempotentes y sobre copia productiva: PASS.
+- [x] E2E, concurrencia e idempotencia: PASS.
+- [x] Stock negativo rechazado con HTTP 409.
+- [x] Docker build: PASS.
+- [ ] Smoke autenticado estricto contra el candidato levantado en QA aislado.
+- [ ] Backup PostgreSQL y etiqueta de rollback.
+- [ ] Deploy exacto del candidato.
+- [ ] Smoke autenticado estricto contra producción HTTPS después del deploy.
+- [ ] Rollback inmediato si el smoke productivo falla.
 
-- Rama: `codex/capture-operational-confirmation`.
-- Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
-- Candidato siguiente exacto: `98f771cdf6838cf00994546cbb29b20d4fdecc06` (corrige el fallback de `getSetCookie()` y añade 3 tests; requiere repetir QA antes de desplegar).
-- Estado: QA aislado PASS; deploy bloqueado antes de backup por `AUTH_SMOKE_BLOCKED`.
-- Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
-- Validación local del candidato anterior: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
-- Validación local del fix del harness: ESLint PASS, TypeScript PASS, 48 pruebas PASS en 12 archivos y build Vite PASS.
-- QA OpenClaw: migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers y Docker: PASS.
-- Bloqueo anterior: `APP_USER_PASSWORD` ausente. En el siguiente intento, el login sí devolvió cookie pero el harness falló porque `getSetCookie()` retornó `undefined`; ese harness ya fue corregido en el nuevo candidato.
-- Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
-- Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
-- El E2E requiere una base PostgreSQL efímera para ejecutarse.
+## Pendiente posterior
 
-### Gates pendientes para este candidato
+- [ ] Activar Telegram real con secretos privados y allowlists de chat/usuario.
+- [ ] Registrar webhook HTTPS y probar mensaje, borrador, confirmar/rechazar e idempotencia.
+- [ ] Implementar seguimiento multi-turno: asociar respuestas al borrador pendiente y mezclar campos.
+- [ ] Evaluar conexión oficial WhatsApp cuando la usuaria esté disponible.
 
-- [x] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
-- [x] Ejecutar `npm run test:e2e` contra PostgreSQL efímero.
-- [x] Ejecutar concurrencia de corte, envío/recepción de bordado, ensamblaje y preparación de entrega.
-- [x] Ejecutar concurrencia de ajustes manuales, edición/anulación de compras y consumos de stock compartido; confirmar que nunca quede stock negativo.
-- [x] Repetir migraciones desde cero y sobre una copia de producción.
-- [x] Docker build, headers, cookies, Telegram simulado y ausencia de integración runtime OpenClaw.
-- [x] Confirmar que el bloqueo anterior por `APP_USER_PASSWORD` ausente no tocó producción.
-- [x] Corregir fallback de `getSetCookie()` y agregar cobertura unitaria del harness.
-- [ ] Ejecutar QA completo del nuevo SHA exacto.
-- [ ] Disponer de una cuenta piloto válida mediante credencial permanente o reset one-shot controlado en el VPS.
-- [ ] Con credenciales piloto válidas, repetir deploy controlado y `npm run smoke:auth` del nuevo SHA exacto.
-- [ ] Solo con todos los gates en PASS: mantener el candidato desplegado.
+## Reglas
 
-## QA aislado completado por OpenClaw
-
-- `npm ci`: PASS, 199 paquetes.
-- `npm run qa`: PASS.
-- Migraciones desde cero: PASS, 14/14.
-- Migraciones sobre copia de la base real: PASS; datos intactos (1 negocio, 4 clientes y 4 pedidos).
-- Contador de pedidos, borradores, triggers `updated_at`, E2E y regresión: PASS.
-- Concurrencia/idempotencia: PASS, 6/6 escenarios.
-- Headers, rate limit, aislamiento del webhook directo y ausencia de conexión al endpoint legacy de OpenClaw: PASS.
-- Docker build: PASS.
-
-## Deploy controlado completado
-
-- Backup previo: `backups/minierp-samiiwara/minierp-prod-pre-1a76b00-20260819T000527-0500.dump`.
-- Imagen de rollback: `minierp_samiiwara_prod-app:rollback-dddb892-c6781cb3649c`.
-- Migraciones en producción: PASS, 14/14.
-- Healthcheck: PASS, `/api/health` devuelve `200` con base de datos `ok`.
-- Smoke de sesión sin token: PASS, devuelve `401`.
-- Login con credenciales bootstrap: `400` esperado; son credenciales one-shot ya rotadas.
-- Rollback: no requerido.
-
-## Pendiente post-deploy: Telegram real
-
-Los gates P0/P1 del candidato están cerrados. Queda pendiente activar el canal Telegram:
-
-### Configuración y prueba pendiente: Telegram real
-
-- [ ] Guardar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BUSINESS_ID`, `TELEGRAM_USER_ID`, `TELEGRAM_ALLOWED_CHAT_IDS` y `TELEGRAM_ALLOWED_USER_IDS` en el entorno privado de producción.
-- [ ] Registrar el webhook oficial usando la URL HTTPS y el secreto configurado.
-- [ ] Probar con datos sintéticos: mensaje, borrador, botones confirmar/rechazar y callbacks.
-- [ ] Repetir un update y confirmar que no duplica el borrador ni el pedido.
-- [ ] Verificar `sendMessage` y `answerCallbackQuery` con el bot real.
-- [ ] Confirmar el flujo con la usuaria y, después de aprobar el candidato de operaciones, definir el siguiente incremento: seguimiento conversacional de borradores.
-
-El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el endpoint legacy de OpenClaw ni enviarle tokens o datos de negocio.
-
-## Condición de aprobación
-
-El candidato anterior `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` pasó QA, pero no quedó desplegado. El nuevo candidato `98f771cdf6838cf00994546cbb29b20d4fdecc06` corrige el fallo del harness y requiere QA de OpenClaw antes de desplegar. Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
-
-## Comandos sugeridos
-
-```bash
-npm run qa
-npm run db:migrate
-npm run test:e2e
-docker build -t minierp-qa .
-```
-
-Los comandos de base de datos y E2E deben ejecutarse contra una instancia de QA, nunca contra producción.
+- Sin fallback de SHA.
+- Sin pruebas destructivas en producción.
+- Sin credenciales, cookies o tokens en Telegram/informes.
+- Sin OpenClaw en el runtime.
