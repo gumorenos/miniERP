@@ -95,4 +95,23 @@ describe("capture parser", () => {
     expect(result.payload.quantity).toBe(-2);
     expect(result.missingFields).toEqual([]);
   });
+
+  it("parses a follow-up amount using the existing expense context", () => {
+    const result = parseCaptureMessage("25 soles", undefined, new Date(), "NEW_EXPENSE");
+    expect(result.intent).toBe("NEW_EXPENSE");
+    expect(result.payload.amount).toBe(25);
+    expect(result.missingFields).toContain("description");
+  });
+
+  it("parses a follow-up customer name using the existing customer context", () => {
+    const result = parseCaptureMessage("Rosa Huamán", undefined, new Date(), "NEW_CUSTOMER");
+    expect(result.intent).toBe("NEW_CUSTOMER");
+    expect(result.payload.name).toBe("Rosa Huamán");
+  });
+
+  it("parses a follow-up product and size using the existing order context", () => {
+    const result = parseCaptureMessage("Vestido Margarita talla M", catalog, new Date(), "NEW_ORDER");
+    expect(result.payload.productId).toBe("product-1");
+    expect(result.payload.size).toBe("M");
+  });
 });

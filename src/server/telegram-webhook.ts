@@ -283,6 +283,7 @@ async function handleMessage(
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       channel: "TELEGRAM",
+      conversationKey: event.chatId + ":" + event.userId,
       sourceMessageId: telegramSourceMessageId(event.chatId, event.messageId),
       rawText: event.text
     })
@@ -297,7 +298,7 @@ async function handleMessage(
   if (!draft) throw new Error("El servidor no devolvió un borrador válido");
   const buttons = confirmButtons(draft);
   await sendMessage(config, event.chatId, telegramDraftText(draft), buttons);
-  return json({ ok: true, type: result.duplicate === true ? "DRAFT_ALREADY_EXISTS" : "DRAFT_CREATED" });
+  return json({ ok: true, type: result.duplicate === true ? "DRAFT_ALREADY_EXISTS" : result.continued === true ? "DRAFT_UPDATED" : "DRAFT_CREATED" });
 }
 
 async function handleCallback(

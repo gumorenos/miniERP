@@ -124,11 +124,25 @@ describe("Telegram webhook flow", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(received).toEqual({ channel: "TELEGRAM", sourceMessageId: "-100123:9", rawText: draft.rawText });
+    expect(received).toEqual({ channel: "TELEGRAM", conversationKey: "-100123:9001", sourceMessageId: "-100123:9", rawText: draft.rawText });
     expect(sent).toHaveLength(1);
     expect(sent[0]?.chatId).toBe("-100123");
     expect(sent[0]?.text).toContain("¿Confirmas");
     expect(sent[0]?.buttons).toHaveLength(2);
+  });
+
+  it("marks a follow-up message as a draft update", async () => {
+    const response = await handleTelegramWebhook(webhookRequest({
+      update_id: 31,
+      message: { message_id: 30, text: "talla M" }
+    }), env, {
+      resolveUser: async () => user,
+      createDraft: async () => new Response(JSON.stringify({ duplicate: false, continued: true, draft }), { status: 200 }),
+      sendMessage: async () => undefined
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, type: "DRAFT_UPDATED" });
   });
 
   it("confirms a callback and acknowledges Telegram without exposing internals", async () => {

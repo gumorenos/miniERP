@@ -6,7 +6,7 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 
 - **Cloudflare Access — PENDIENTE.** Mantener el login propio de la aplicación y añadir Access delante del hostname como defensa en profundidad antes de ampliar el piloto o convertirlo en un servicio externo más estable.
 - Gestor de secretos — pendiente. El `.env.production` con permisos estrictos sigue siendo la solución de piloto; evaluar un gestor dedicado cuando aumente el alcance operativo.
-- Migrar bearer token en `localStorage` a cookie segura `HttpOnly` + protección CSRF.
+- Cookie segura `HttpOnly` ya está implementada; mantener pendiente la protección CSRF explícita si se amplían mutaciones cross-site.
 - MFA, recuperación de contraseña y administración visible de sesiones/dispositivos.
 - Revisión de headers/CSP y reglas WAF/rate-limit de Cloudflare además del rate-limit de aplicación.
 - Backups automatizados, prueba periódica de restore y política de retención.
@@ -14,8 +14,10 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 ## Operación del taller
 
 - Automatización de WhatsApp mediante proveedor/API. La etapa actual solo genera enlaces y mensajes para revisión humana antes de enviar.
-- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados (2026-08-19).** El núcleo está en producción junto con las operaciones conversacionales en `de5d3f6f5f088421fee8f3030652808076965656`, que pasó QA aislado, E2E, concurrencia/idempotencia, migraciones y Docker. Telegram aún requiere configurar secretos, registrar el webhook y hacer una prueba sintética con el bot real. OpenClaw queda fuera del runtime funcional y se usa únicamente para testing, QA y despliegue. Conectar WhatsApp oficial cuando la usuaria esté disponible. Telegram y WhatsApp deben ser adaptadores intercambiables, no dos implementaciones de negocio distintas.
-- **Hardening post-code-review — en desarrollo.** El siguiente candidato corrige carreras de estado/stock en corte, bordado, ensamblaje, entrega, ajustes manuales y edición/anulación de compras. También añade escenarios E2E concurrentes para corte, ensamblaje y preparación de entrega. No está desplegado: requiere QA aislado con PostgreSQL, pruebas de rollback/concurrencia y aprobación del SHA exacto.
+- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`, con QA aislado, E2E, concurrencia/idempotencia, migraciones y Docker PASS. Telegram aún requiere secretos privados, webhook y prueba sintética real. OpenClaw queda fuera del runtime.
+- **Seguimiento conversacional UX — implementado localmente.** Los borradores incompletos o ambiguos muestran preguntas agrupadas y la confirmación sigue bloqueada hasta resolverlas.
+- **Captura multi-turno — implementada localmente, pendiente de QA.** La migración 0016 asocia mensajes por conversación, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados. El candidato exacto se publicará desde la base productiva b6; no desplegar hasta pasar QA aislado.
+- **Hardening post-code-review — ya validado y desplegado como parte de b6.** Mantener regresión de carreras de estado/stock y confirmaciones idempotentes en cada candidato posterior.
 - Intenciones iniciales de captura: nuevo pedido, nuevo cliente, nueva compra, nuevo gasto y ajuste de stock. La IA propone datos; nunca crea silenciosamente.
 - Audio e imágenes quedan después de estabilizar la captura textual y la confirmación.
 - Fotos/adjuntos por producto y pedido: referencia de la clienta, bordado enviado/recibido y prenda terminada. Evaluar almacenamiento R2 u objeto equivalente antes de implementarlo.

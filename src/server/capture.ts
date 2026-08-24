@@ -7,11 +7,12 @@ import {
   isCaptureSize,
   normalizeCaptureText,
   parseCaptureMessage,
+  type CaptureIntent,
   type CapturePayload
 } from "../domain/capture";
 import { paymentMethods, sizes } from "../domain/types";
 import { db } from "../db/client";
-import { captureDrafts, customers, productSizePrices, products, materials, suppliers } from "../db/schema";
+import { captureDraftMessages, captureDrafts, customers, productSizePrices, products, materials, suppliers } from "../db/schema";
 import type { AuthUser } from "./auth";
 import { createOrderRecord, loadOrder, parseOrderCreatePayload, prepareOrderCreate } from "./order-create";
 import { type DbTransaction } from "./order-number";
@@ -20,6 +21,7 @@ import { createCapturedExpense, createCapturedPurchase, createCapturedStockAdjus
 const channelSchema = z.enum(captureChannels);
 const draftSchema = z.object({
   channel: channelSchema.default("INTERNAL"),
+  conversationKey: z.string().trim().max(200).optional().nullable(),
   sourceMessageId: z.string().trim().max(200).optional().nullable(),
   rawText: z.string().trim().min(2).max(4000)
 });
@@ -70,6 +72,7 @@ function serializeDraft(row: CaptureDraftRow) {
   return {
     id: row.id,
     channel: row.channel,
+    conversationKey: row.conversationKey,
     sourceMessageId: row.sourceMessageId,
     rawText: row.rawText,
     intent: row.intent,
@@ -110,6 +113,64 @@ async function getDraft(businessId: string, id: string) {
   return row ?? null;
 }
 
+async function draftForSourceMessage(businessId: string, channel: string, sourceMessageId: string) {
+  const [row] = await db.select({ draft: captureDrafts })
+    .from(captureDraftMessages)
+    .innerJoin(captureDrafts, eq(captureDraftMessages.draftId, captureDrafts.id))
+    .where(and(
+      eq(captureDraftMessages.businessId, businessId),
+      eq(captureDraftMessages.channel, channel),
+      eq(captureDraftMessages.sourceMessageId, sourceMessageId)
+    ))
+    .limit(1);
+  if (row?.draft) return row.draft;
+  const [legacy] = await db.select().from(captureDrafts).where(and(
+    eq(captureDrafts.businessId, businessId),
+    eq(captureDrafts.channel, channel),
+    eq(captureDrafts.sourceMessageId, sourceMessageId)
+  )).limit(1);
+  return legacy ?? null;
+}
+
+async function pendingConversationDraft(businessId: string, channel: string, conversationKey: string) {
+  const rows = await db.select().from(captureDrafts).where(and(
+    eq(captureDrafts.businessId, businessId),
+    eq(captureDrafts.channel, channel),
+    eq(captureDrafts.conversationKey, conversationKey),
+    eq(captureDrafts.status, "PENDING")
+  )).orderBy(desc(captureDrafts.updatedAt)).limit(10);
+  return rows.find((row) => readJson<string[]>(row.missingFieldsJson, []).length > 0 || readJson<string[]>(row.ambiguousFieldsJson, []).length > 0) ?? null;
+}
+
+async function lockConversationDraft(transaction: DbTransaction, businessId: string, channel: string, conversationKey: string) {
+  const rows = await transaction.select().from(captureDrafts).where(and(
+    eq(captureDrafts.businessId, businessId),
+    eq(captureDrafts.channel, channel),
+    eq(captureDrafts.conversationKey, conversationKey),
+    eq(captureDrafts.status, "PENDING")
+  )).orderBy(desc(captureDrafts.updatedAt)).limit(10).for("update");
+  return rows.find((row) => readJson<string[]>(row.missingFieldsJson, []).length > 0 || readJson<string[]>(row.ambiguousFieldsJson, []).length > 0) ?? null;
+}
+
+async function recordCaptureMessage(transaction: DbTransaction, input: {
+  businessId: string;
+  draftId: string;
+  channel: string;
+  conversationKey?: string | null;
+  sourceMessageId?: string | null;
+  rawText: string;
+}) {
+  if (!input.sourceMessageId) return;
+  await transaction.insert(captureDraftMessages).values({
+    businessId: input.businessId,
+    draftId: input.draftId,
+    channel: input.channel,
+    conversationKey: input.conversationKey ?? null,
+    sourceMessageId: input.sourceMessageId,
+    rawText: input.rawText
+  });
+}
+
 async function lockDraft(transaction: DbTransaction, businessId: string, id: string) {
   const [row] = await transaction.select().from(captureDrafts)
     .where(and(eq(captureDrafts.businessId, businessId), eq(captureDrafts.id, id)))
@@ -130,6 +191,65 @@ function resolveByName<T extends { id: string; name: string }>(name: string | un
   const longest = Math.max(...matches.map((row) => normalizeCaptureText(row.name).length));
   const top = matches.filter((row) => normalizeCaptureText(row.name).length === longest);
   return { row: top.length === 1 ? top[0] : undefined, ambiguous: top.length > 1 };
+}
+
+function mergeCapturePayload(base: CapturePayload, ...candidates: CapturePayload[]) {
+  const merged: CapturePayload = { ...base };
+  for (const candidate of candidates) {
+    for (const [key, value] of Object.entries(candidate) as Array<[keyof CapturePayload, CapturePayload[keyof CapturePayload]]>) {
+      if (value === undefined || value === null) continue;
+      if (key === "quantity" && value === 1 && merged.quantity != null && merged.quantity !== 1) continue;
+      if (key === "advanceAmount" && value === 0 && merged.advanceAmount != null && merged.advanceAmount !== 0) continue;
+      merged[key] = value as never;
+    }
+  }
+  return merged;
+}
+
+function payloadKeysForFields(fields: string[]) {
+  const keys = new Set<keyof CapturePayload>();
+  const add = (...values: Array<keyof CapturePayload>) => values.forEach((value) => keys.add(value));
+  for (const field of fields) {
+    if (field === "customer") add("customerId", "customerName", "customerPhone");
+    else if (field === "product") add("productId", "productName");
+    else if (field === "material") add("materialId", "materialName");
+    else if (field === "supplier") add("supplierId", "supplierName");
+    else if (field === "promisedDeliveryDate") add("promisedDeliveryDate", "deliveryText");
+    else if (field === "name") add("name");
+    else if (field === "phone") add("phone");
+    else if (field === "quantity") add("quantity");
+    else if (field === "amount") add("amount");
+    else if (field === "description") add("description");
+    else if (field === "size") add("size");
+    else if (field === "color") add("color");
+  }
+  return keys;
+}
+
+function selectPayloadKeys(payload: CapturePayload, keys: Set<keyof CapturePayload>) {
+  const selected: CapturePayload = {};
+  for (const key of keys) {
+    if (payload[key] !== undefined && payload[key] !== null) selected[key] = payload[key] as never;
+  }
+  return selected;
+}
+
+function fieldResolved(field: string, payload: CapturePayload) {
+  if (["customer", "product", "material"].includes(field)) return Boolean(payload[`${field}Id` as keyof CapturePayload]);
+  if (field === "size") return Boolean(payload.size);
+  if (field === "color") return Boolean(payload.color?.trim());
+  if (field === "promisedDeliveryDate") return Boolean(payload.promisedDeliveryDate);
+  if (field === "name") return Boolean(payload.name?.trim());
+  if (field === "phone") return Boolean(payload.phone?.trim());
+  if (field === "quantity") return typeof payload.quantity === "number" && Number.isFinite(payload.quantity);
+  if (field === "amount") return typeof payload.amount === "number" && Number.isFinite(payload.amount);
+  if (field === "description") return Boolean(payload.description?.trim() && payload.description.trim().length >= 2);
+  if (field === "intent") return true;
+  return false;
+}
+
+function resolvedMissingFields(fields: string[], payload: CapturePayload) {
+  return fields.filter((field) => !fieldResolved(field, payload));
 }
 
 async function orderPayload(payload: CapturePayload, businessId: string) {
@@ -246,38 +366,94 @@ export async function createCaptureDraft(request: Request, user: AuthUser) {
   if (!isCaptureChannel(channel)) return json({ error: "Canal de captura inválido." }, 400);
 
   if (body.sourceMessageId) {
-    const [existing] = await db.select().from(captureDrafts).where(and(
-      eq(captureDrafts.businessId, user.businessId),
-      eq(captureDrafts.channel, channel),
-      eq(captureDrafts.sourceMessageId, body.sourceMessageId)
-    )).limit(1);
+    const existing = await draftForSourceMessage(user.businessId, channel, body.sourceMessageId);
     if (existing) return json({ duplicate: true, draft: serializeDraft(existing) });
   }
 
   const catalog = await activeCatalog(user.businessId);
+  const conversationDraft = body.conversationKey
+    ? await pendingConversationDraft(user.businessId, channel, body.conversationKey)
+    : null;
+
+  if (conversationDraft) {
+    try {
+      const updated = await db.transaction(async (tx) => {
+        const locked = await lockConversationDraft(tx, user.businessId, channel, body.conversationKey!);
+        if (!locked) return { kind: "new" as const };
+        const intent = locked.intent as CaptureIntent;
+        const combined = parseCaptureMessage(locked.rawText + "\n" + body.rawText, catalog, new Date(), intent);
+        const reply = parseCaptureMessage(body.rawText, catalog, new Date(), intent);
+        const completionKeys = payloadKeysForFields([
+          ...readJson<string[]>(locked.missingFieldsJson, []),
+          ...readJson<string[]>(locked.ambiguousFieldsJson, [])
+        ]);
+        const payload = mergeCapturePayload(
+          readJson<CapturePayload>(locked.payloadJson, {}),
+          selectPayloadKeys(combined.payload, completionKeys),
+          selectPayloadKeys(reply.payload, completionKeys)
+        );
+        const [row] = await tx.update(captureDrafts).set({
+          rawText: locked.rawText + "\n" + body.rawText,
+          payloadJson: JSON.stringify(payload),
+          missingFieldsJson: JSON.stringify(resolvedMissingFields(combined.missingFields, payload)),
+          ambiguousFieldsJson: JSON.stringify(combined.ambiguousFields.filter((field) => !fieldResolved(field, payload))),
+          parserVersion: combined.parserVersion,
+          updatedAt: new Date()
+        }).where(and(eq(captureDrafts.id, locked.id), eq(captureDrafts.status, "PENDING"))).returning();
+        if (!row) return { kind: "new" as const };
+        await recordCaptureMessage(tx, {
+          businessId: user.businessId,
+          draftId: row.id,
+          channel,
+          conversationKey: body.conversationKey,
+          sourceMessageId: body.sourceMessageId,
+          rawText: body.rawText
+        });
+        return { kind: "updated" as const, draft: row };
+      });
+      if (updated.kind === "updated") return json({ duplicate: false, continued: true, draft: serializeDraft(updated.draft) });
+    } catch (error) {
+      if (body.sourceMessageId && isUniqueViolation(error)) {
+        const existing = await draftForSourceMessage(user.businessId, channel, body.sourceMessageId);
+        if (existing) return json({ duplicate: true, draft: serializeDraft(existing) });
+      } else {
+        throw error;
+      }
+    }
+  }
+
   const parsedMessage = parseCaptureMessage(body.rawText, catalog);
   let created: CaptureDraftRow | undefined;
   try {
-    [created] = await db.insert(captureDrafts).values({
-      businessId: user.businessId,
-      createdByUserId: user.id,
-      channel,
-      sourceMessageId: body.sourceMessageId || null,
-      rawText: body.rawText,
-      intent: parsedMessage.intent,
-      status: "PENDING",
-      payloadJson: JSON.stringify(parsedMessage.payload),
-      missingFieldsJson: JSON.stringify(parsedMessage.missingFields),
-      ambiguousFieldsJson: JSON.stringify(parsedMessage.ambiguousFields),
-      parserVersion: parsedMessage.parserVersion
-    }).returning();
+    created = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(captureDrafts).values({
+        businessId: user.businessId,
+        createdByUserId: user.id,
+        channel,
+        conversationKey: body.conversationKey || null,
+        sourceMessageId: body.sourceMessageId || null,
+        rawText: body.rawText,
+        intent: parsedMessage.intent,
+        status: "PENDING",
+        payloadJson: JSON.stringify(parsedMessage.payload),
+        missingFieldsJson: JSON.stringify(parsedMessage.missingFields),
+        ambiguousFieldsJson: JSON.stringify(parsedMessage.ambiguousFields),
+        parserVersion: parsedMessage.parserVersion
+      }).returning();
+      if (!row) throw new Error("No se pudo crear el borrador");
+      await recordCaptureMessage(tx, {
+        businessId: user.businessId,
+        draftId: row.id,
+        channel,
+        conversationKey: body.conversationKey,
+        sourceMessageId: body.sourceMessageId,
+        rawText: body.rawText
+      });
+      return row;
+    });
   } catch (error) {
     if (!body.sourceMessageId || !isUniqueViolation(error)) throw error;
-    const [existing] = await db.select().from(captureDrafts).where(and(
-      eq(captureDrafts.businessId, user.businessId),
-      eq(captureDrafts.channel, channel),
-      eq(captureDrafts.sourceMessageId, body.sourceMessageId)
-    )).limit(1);
+    const existing = await draftForSourceMessage(user.businessId, channel, body.sourceMessageId);
     if (!existing) throw error;
     return json({ duplicate: true, draft: serializeDraft(existing) });
   }

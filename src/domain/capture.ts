@@ -138,7 +138,10 @@ function expenseCategory(text: string) {
 
 function operationDescription(text: string, intent: CaptureIntent) {
   const clean = text.replace(/^(?:nuevo\s+)?(?:gasto|compra|compré|compre|ajuste(?:\s+de\s+stock)?)\s*(?:de|:)?\s*/i, "").trim();
-  if (intent === "NEW_EXPENSE") return cleanName(clean) || "Gasto registrado desde captura";
+  if (intent === "NEW_EXPENSE") {
+    if (/^(?:s\/?\.?\s*)?\d+(?:[.,]\d{1,2})?\s*(?:soles?|s\/?\.?)?$/i.test(clean)) return "";
+    return cleanName(clean) || "Gasto registrado desde captura";
+  }
   return cleanName(text);
 }
 
@@ -325,7 +328,8 @@ function parseOperational(text: string, intent: CaptureIntent, catalog: CaptureC
     };
   }
 
-  const amount = findAmount(text, /(?:s\/?\.?|de|por|total|gasto|pago|pagu[eé])\s*(\d+(?:[.,]\d{1,2})?)/i);
+  const amount = findAmount(text, /(?:s\/?\.?|de|por|total|gasto|pago|pagu[eé])\s*(\d+(?:[.,]\d{1,2})?)/i)
+    ?? findAmount(text, /(?:^|\s)(?:s\/?\.?\s*)?(\d+(?:[.,]\d{1,2})?)(?:\s*(?:soles?|s\/?\.?))?\s*$/i);
   const payload: CapturePayload = {
     amount,
     description,
@@ -343,15 +347,17 @@ function parseOperational(text: string, intent: CaptureIntent, catalog: CaptureC
   };
 }
 
-export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now = new Date()): CaptureParseResult {
+export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now = new Date(), forcedIntent?: CaptureIntent): CaptureParseResult {
   const cleanText = text.trim();
-  const intent = classify(cleanText);
+  const intent = forcedIntent ?? classify(cleanText);
   if (intent === "NEW_ORDER") return parseOrder(cleanText, catalog, now);
 
   if (intent === "NEW_CUSTOMER") {
     const explicit = cleanText.match(/(?:cliente|clienta)\s*(?:es|se llama|:)?\s*([A-Za-zÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑ' -]{1,70})/i);
     const phone = findPhone(cleanText);
-    const name = explicit?.[1] ? cleanName(explicit[1].split(/\s+(?:9\d|tel[eé]fono|celular)/i)[0]) : undefined;
+    const name = explicit?.[1]
+      ? cleanName(explicit[1].split(/\s+(?:9\d|tel[eé]fono|celular)/i)[0])
+      : forcedIntent === "NEW_CUSTOMER" && !/\d/.test(cleanText) ? cleanName(cleanText) : undefined;
     return {
       intent,
       parserVersion: "rules-v1",

@@ -1,47 +1,51 @@
-# Contexto de continuidad — miniERP / Samiiwara
+# Contexto de continuidad — miniERP
 
 Última actualización: 2026-08-24
 
 ## Reglas de trabajo
 
-- ChatGPT desarrolla el producto.
-- OpenClaw se usa únicamente para testing, QA, backups y deploy; no se integra al runtime.
-- Todo prompt para OpenClaw debe incluir contexto mínimo, candidato exacto y regla de no usar fallbacks.
-- No poner secretos en Telegram ni en este archivo.
+- OpenClaw se usa únicamente para testing, QA y despliegue. No forma parte del runtime ni del flujo Telegram/WhatsApp.
+- Telegram se conecta directamente al webhook de miniERP. WhatsApp será otro adaptador del mismo núcleo cuando la usuaria esté disponible.
+- Todo candidato debe validarse por SHA exacto. OpenClaw no debe usar otro SHA, `HEAD` ni la cabeza de una rama como fallback.
+- No enviar secretos, cookies, tokens ni datos reales por Telegram, Git o reportes.
 
-## Producción y candidato QA
+## Producción
 
-- Producción: `https://prueba.gumorenos.space`
-- Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656` hasta que OpenClaw confirme otro deploy.
-- Candidato de QA actualmente validado para reintentar auth smoke: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
-- Rama QA dedicada: `qa/miniERP-auth-cookie-fix-a92`.
-- El candidato a92 corrigió el harness de auth para leer `Set-Cookie` con headers HTTP nativos. OpenClaw debe verificar explícitamente el HEAD de esa rama y detenerse si no coincide.
+- URL: `https://prueba.gumorenos.space`
+- SHA desplegado: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`
+- Último reporte: QA aislado, 51/51 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, smoke autenticado HTTPS, Docker y health PASS.
+- Producción no debe tocarse durante el desarrollo local de este incremento.
 
-## Trabajo realizado en esta tarea
+## Incremento actual: captura conversacional multi-turno
 
-Se implementó la siguiente mejora, todavía no desplegada:
+Implementado localmente y pendiente de publicar/validar con OpenClaw:
 
-- La captura conversacional traduce campos internos a etiquetas legibles en español.
-- Los borradores incompletos o ambiguos generan preguntas concretas y ejemplos para que la usuaria responda en un solo mensaje.
-- Una fecha, cliente, producto o material ambiguo bloquea la confirmación hasta que se aclare.
-- La lógica de seguimiento vive en el dominio de captura y puede reutilizarse desde Telegram o un futuro adaptador WhatsApp.
-- No se agregó dependencia de OpenClaw, Telegram real ni WhatsApp.
+- `capture_drafts.conversation_key` para asociar mensajes de una conversación.
+- Nueva tabla `capture_draft_messages` para idempotencia por mensaje y auditoría del texto recibido.
+- Migración `0016_capture_conversations.sql`, con backfill de mensajes históricos.
+- Las respuestas posteriores completan el borrador pendiente más reciente de la misma conversación, sin crear otro registro.
+- Se conserva la intención original y solo se mezclan campos que estaban faltantes o ambiguos.
+- Confirmación humana sigue siendo obligatoria; no se ejecuta ninguna operación al recibir una respuesta.
+- Repetir un `sourceMessageId` devuelve el borrador existente sin reaplicar la respuesta.
+- Telegram envía `conversationKey = chat_id:user_id`; WhatsApp podrá usar su identificador equivalente.
+- Si el borrador sigue incompleto, se envían nuevas preguntas; si queda confirmable, se envían los botones habituales.
 
-Validación local de esta mejora:
+## Validación local actual
 
-- ESLint: PASS
-- TypeScript: PASS
-- Vitest: PASS, 50/50 pruebas
-- Vite build: PASS
+- ESLint: PASS.
+- TypeScript: PASS.
+- Vitest: PASS, 55/55 pruebas.
+- Build Vite: PASS.
+- `git diff --check`: PASS.
 
-## Siguiente paso recomendado
+## Siguiente gate
 
-1. Esperar el resultado de OpenClaw sobre `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`; si pasa auth smoke, que despliegue según el prompt.
-2. Ejecutar revisión/QA del nuevo candidato de seguimiento conversacional antes de desplegarlo.
-3. Después implementar conversación multi-turno real: asociar una respuesta posterior al borrador pendiente correcto, reparsear/mezclar datos y volver a mostrar confirmación sin duplicar registros.
-4. Luego configurar Telegram real con secretos privados y prueba sintética; WhatsApp queda para cuando exista contacto y proveedor.
+Publicar un candidato basado en el SHA de producción, verificar que el commit exista en GitHub y entregar a OpenClaw un prompt con ese SHA exacto. OpenClaw debe ejecutar migración 0016, QA aislado, E2E, concurrencia/idempotencia de mensajes y Docker. No desplegar hasta que todos los gates pasen.
 
-## Estado de OpenClaw
+## Próximas etapas después del multi-turno
 
-OpenClaw no es parte de la aplicación. Si reporta un SHA inexistente, cookie ausente, AUTH_* distinto de PASS o cualquier gate fallido, no debe hacer deploy ni usar otro SHA como sustituto.
-\n\n## Diagnóstico del bloqueo AUTH_COOKIE_MISSING\n\nEl login fue aceptado pero OpenClaw no encontró `minierp_session`. No se usará el token JSON como sustituto, porque eso ocultaría un fallo real de sesión por cookie. El siguiente QA debe reportar si la cookie aparece en headers normales o en `rawHeaders`, sin revelar tokens.\n
+1. QA y eventual deploy del candidato multi-turno.
+2. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados; probar mensaje, respuesta, confirmación, rechazo y replay.
+3. Observar uso real y ajustar parser/preguntas con evidencia.
+4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo de captura, sin copiar lógica de negocio.
+5. Luego: audio/imágenes y adjuntos, solo si el uso real lo justifica.

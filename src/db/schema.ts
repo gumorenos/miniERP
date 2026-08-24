@@ -243,6 +243,7 @@ export const captureDrafts = pgTable(
     businessId: uuid("business_id").notNull().references(() => businesses.id),
     createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id),
     channel: text("channel").notNull(),
+    conversationKey: text("conversation_key"),
     sourceMessageId: text("source_message_id"),
     rawText: text("raw_text").notNull(),
     intent: text("intent").notNull(),
@@ -260,7 +261,26 @@ export const captureDrafts = pgTable(
   },
   (table) => [
     index("capture_drafts_business_status_idx").on(table.businessId, table.status, table.createdAt),
+    index("capture_drafts_conversation_idx").on(table.businessId, table.channel, table.conversationKey, table.status, table.updatedAt),
     uniqueIndex("capture_drafts_source_idx").on(table.businessId, table.channel, table.sourceMessageId).where(sql`${table.sourceMessageId} IS NOT NULL`)
+  ]
+);
+
+export const captureDraftMessages = pgTable(
+  "capture_draft_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    draftId: uuid("draft_id").notNull().references(() => captureDrafts.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    conversationKey: text("conversation_key"),
+    sourceMessageId: text("source_message_id").notNull(),
+    rawText: text("raw_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex("capture_draft_messages_source_idx").on(table.businessId, table.channel, table.sourceMessageId),
+    index("capture_draft_messages_draft_idx").on(table.draftId, table.createdAt)
   ]
 );
 

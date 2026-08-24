@@ -133,6 +133,7 @@ async function handleMessage(body: TelegramCaptureRequest, user: AuthUser) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       channel: "TELEGRAM",
+      conversationKey: body.chatId,
       sourceMessageId,
       rawText: body.text
     })
