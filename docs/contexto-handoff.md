@@ -2,45 +2,78 @@
 
 Última actualización: 2026-08-24
 
-## Reglas de trabajo
+## Proyecto y límites
 
-- ChatGPT desarrolla el producto.
-- OpenClaw se usa únicamente para testing, QA, backups y deploy; no se integra al runtime.
-- Todo prompt para OpenClaw debe incluir contexto mínimo, candidato exacto y regla de no usar fallbacks.
-- No poner secretos en Telegram ni en este archivo.
+- Repositorio: `gumorenos/miniERP`.
+- Producción: `https://prueba.gumorenos.space`.
+- OpenClaw se usa únicamente como agente externo de testing/QA, backup y despliegue condicionado. No se integra al runtime, webhook ni lógica de negocio.
+- No inventar credenciales ni enviarlas por Telegram. Las credenciales productivas se gestionan directamente en el VPS o gestor de contraseñas.
+- Si un SHA no existe o un gate falla, OpenClaw debe detenerse y no usar otro SHA como sustituto.
 
-## Producción y candidato QA
+## Estado productivo
 
-- Producción: `https://prueba.gumorenos.space`
-- Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656` hasta que OpenClaw confirme otro deploy.
-- Candidato de QA actualmente validado para reintentar auth smoke: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
+- Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`.
+- El último deploy PASS confirmado por OpenClaw fue sobre ese SHA.
+- El último intento de deploy posterior quedó bloqueado por el smoke autenticado; no se aplicaron migraciones ni se alteró producción.
+- OpenClaw no debe tocar producción hasta terminar todos los gates del candidato exacto.
+
+## Candidato de QA de autenticación
+
+- SHA exacto: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
 - Rama QA dedicada: `qa/miniERP-auth-cookie-fix-a92`.
-- El candidato a92 corrigió el harness de auth para leer `Set-Cookie` con headers HTTP nativos. OpenClaw debe verificar explícitamente el HEAD de esa rama y detenerse si no coincide.
+- Esta rama debe verificarse con fetch explícito y `git rev-parse`; no usar el HEAD de otra rama como fallback.
+- El candidato contiene el harness de smoke autenticado corregido para leer `Set-Cookie` mediante headers HTTP nativos.
+- OpenClaw debe ejecutar QA aislado, migraciones, E2E, concurrencia, Docker y smoke auth. Solo con PASS completo puede hacer backup, migraciones y deploy exacto de a92.
 
-## Trabajo realizado en esta tarea
+## Trabajo desarrollado después del candidato a92
 
-Se implementó la siguiente mejora, todavía no desplegada:
+Se publicó un candidato posterior en la rama QA dedicada:
 
-- La captura conversacional traduce campos internos a etiquetas legibles en español.
-- Los borradores incompletos o ambiguos generan preguntas concretas y ejemplos para que la usuaria responda en un solo mensaje.
-- Una fecha, cliente, producto o material ambiguo bloquea la confirmación hasta que se aclare.
-- La lógica de seguimiento vive en el dominio de captura y puede reutilizarse desde Telegram o un futuro adaptador WhatsApp.
-- No se agregó dependencia de OpenClaw, Telegram real ni WhatsApp.
+- Rama: `qa/miniERP-conversational-followup`.
+- SHA exacto: `15a4a6030e09e122c39644ee19dbe941534887dd`.
+- Padre: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
+- Este candidato todavía no está desplegado ni aprobado por OpenClaw.
 
-Validación local de esta mejora:
+Cambios:
 
-- ESLint: PASS
-- TypeScript: PASS
-- Vitest: PASS, 50/50 pruebas
-- Vite build: PASS
+- Etiquetas internas de captura convertidas a español legible.
+- Preguntas concretas para campos faltantes o ambiguos, con ejemplos de talla, fecha y cantidad.
+- Hasta tres preguntas agrupadas para que la usuaria responda en un solo mensaje.
+- Cualquier ambigüedad, incluida la fecha de entrega, bloquea el botón de confirmación.
+- La lógica de seguimiento está en el dominio de captura y puede reutilizarse desde Telegram y un futuro adaptador WhatsApp.
+- No se añadió dependencia de OpenClaw, Telegram real ni WhatsApp.
 
-## Siguiente paso recomendado
+Validación local del candidato 15a4:
 
-1. Esperar el resultado de OpenClaw sobre `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`; si pasa auth smoke, que despliegue según el prompt.
-2. Ejecutar revisión/QA del nuevo candidato de seguimiento conversacional antes de desplegarlo.
-3. Después implementar conversación multi-turno real: asociar una respuesta posterior al borrador pendiente correcto, reparsear/mezclar datos y volver a mostrar confirmación sin duplicar registros.
-4. Luego configurar Telegram real con secretos privados y prueba sintética; WhatsApp queda para cuando exista contacto y proveedor.
+- ESLint: PASS.
+- TypeScript: PASS.
+- Vitest: PASS, 50/50 pruebas en 12 archivos.
+- Vite build: PASS.
+- PostgreSQL aislado, Docker, migraciones productivas y deploy: pendientes de OpenClaw.
 
-## Estado de OpenClaw
+## Funcionalidad siguiente
 
-OpenClaw no es parte de la aplicación. Si reporta un SHA inexistente, cookie ausente, AUTH_* distinto de PASS o cualquier gate fallido, no debe hacer deploy ni usar otro SHA como sustituto.
+El próximo incremento real después de aprobar este candidato es conversación multi-turno:
+
+1. Detectar la respuesta posterior de la usuaria.
+2. Asociarla al borrador pendiente correcto dentro del mismo canal/chat/usuario.
+3. Reparsear y mezclar únicamente los campos faltantes o ambiguos.
+4. Mostrar el borrador actualizado.
+5. Mantener confirmación humana, idempotencia y protección contra duplicados.
+6. Expirar o permitir descartar borradores abandonados.
+
+Después: configurar Telegram real con secretos privados y prueba sintética; WhatsApp queda para cuando exista contacto y se elija proveedor/API.
+
+## Documentación operativa
+
+- `docs/roadmap.md`: mapa de funcionalidades y prioridades.
+- `docs/qa-pendiente.md`: gates e histórico de QA/deploy.
+- `docs/openclaw-qa-prompt.md`: prompt corto para Telegram.
+- `docs/openclaw-qa-operations-prompt.md`: prompt detallado.
+- `docs/telegram-capture.md`: contrato del webhook directo.
+- `docs/authentication.md`: sesión y autenticación.
+- Este archivo debe actualizarse al terminar cada tarea.
+
+## Regla para continuar
+
+Primero confirmar el SHA y la rama exacta con GitHub. No mezclar el QA de a92 con el candidato 15a4. No desplegar el seguimiento conversacional sin QA aislado completo y aprobación del SHA exacto.
