@@ -44,4 +44,8 @@ Validación local de esta mejora:
 ## Estado de OpenClaw
 
 OpenClaw no es parte de la aplicación. Si reporta un SHA inexistente, cookie ausente, AUTH_* distinto de PASS o cualquier gate fallido, no debe hacer deploy ni usar otro SHA como sustituto.
-\n\n## Diagnóstico del bloqueo AUTH_COOKIE_MISSING\n\nEl login fue aceptado pero OpenClaw no encontró `minierp_session`. No se usará el token JSON como sustituto, porque eso ocultaría un fallo real de sesión por cookie. El siguiente QA debe reportar si la cookie aparece en headers normales o en `rawHeaders`, sin revelar tokens.\n
+
+
+## Diagnóstico del bloqueo AUTH_COOKIE_MISSING
+
+El login fue aceptado pero OpenClaw no encontró `minierp_session`. No se usará el token JSON como sustituto, porque eso ocultaría un fallo real de sesión por cookie. El siguiente QA debe reportar si la cookie aparece en headers normales o en `rawHeaders`, sin revelar tokens.
