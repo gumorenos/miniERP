@@ -27,7 +27,7 @@
 
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
-- Candidato siguiente exacto: `98f771cdf6838cf00994546cbb29b20d4fdecc06` (corrige el fallback de `getSetCookie()` y añade 3 tests; requiere repetir QA antes de desplegar).
+- Candidato siguiente exacto: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca` (lee `Set-Cookie` desde headers HTTP crudos y añade 3 tests; requiere repetir QA antes de desplegar).
 - Estado: QA aislado PASS; deploy bloqueado antes de backup por `AUTH_SMOKE_BLOCKED`.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local del candidato anterior: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
@@ -47,7 +47,7 @@
 - [x] Repetir migraciones desde cero y sobre una copia de producción.
 - [x] Docker build, headers, cookies, Telegram simulado y ausencia de integración runtime OpenClaw.
 - [x] Confirmar que el bloqueo anterior por `APP_USER_PASSWORD` ausente no tocó producción.
-- [x] Corregir fallback de `getSetCookie()` y agregar cobertura unitaria del harness.
+- [x] Corregir lectura de `Set-Cookie` usando headers HTTP crudos y agregar cobertura unitaria del harness.
 - [ ] Ejecutar QA completo del nuevo SHA exacto.
 - [ ] Disponer de una cuenta piloto válida mediante credencial permanente o reset one-shot controlado en el VPS.
 - [ ] Con credenciales piloto válidas, repetir deploy controlado y `npm run smoke:auth` del nuevo SHA exacto.
