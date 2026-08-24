@@ -15,7 +15,7 @@ CANDIDATO EXACTO
 
 Repo: gumorenos/miniERP
 Rama: codex/capture-operational-confirmation
-SHA: fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7
+SHA: 98f771cdf6838cf00994546cbb29b20d4fdecc06
 Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
