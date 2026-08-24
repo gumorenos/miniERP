@@ -20,7 +20,7 @@ Validar y desplegar, solo con todos los gates en PASS, el candidato que incorpor
 CANDIDATO EXACTO
 
 Repo: gumorenos/miniERP
-Rama QA inmutable: qa/miniERP-auth-cookie-fix-a92
+Rama QA dedicada (HEAD fijado): qa/miniERP-auth-cookie-fix-a92
 SHA exacto: a92ac8d3efbdc8fef7ba3ea727078a996b775dca
 Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
