@@ -3,6 +3,7 @@ import type { CaptureChannel, CaptureIntent, CapturePayload } from "../domain/ca
 export type CaptureDraft = {
   id: string;
   channel: string;
+  conversationKey?: string | null;
   sourceMessageId?: string | null;
   rawText: string;
   intent: CaptureIntent;
@@ -40,7 +41,7 @@ async function request<T>(path: string, options: RequestInit = {}) {
 }
 
 export const captureApi = {
-  createDraft: (payload: { rawText: string; channel?: CaptureChannel; sourceMessageId?: string | null }) =>
+  createDraft: (payload: { rawText: string; channel?: CaptureChannel; conversationKey?: string | null; sourceMessageId?: string | null }) =>
     request<{ duplicate: boolean; draft: CaptureDraft }>("/api/capture/drafts", { method: "POST", body: JSON.stringify({ channel: "INTERNAL", ...payload }) }),
   listDrafts: () => request<{ rows: CaptureDraft[] }>("/api/capture/drafts"),
   confirmDraft: (id: string, payload: CapturePayload) =>

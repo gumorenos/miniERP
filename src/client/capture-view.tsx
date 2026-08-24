@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { captureIntentLabel } from "../domain/capture";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { captureFollowUpPrompt, captureIntentLabel } from "../domain/capture";
 import { captureApi, type CaptureDraft } from "./capture-api";
 import type { Bootstrap, Customer, OrderDetail, Product } from "./api";
 
@@ -32,11 +32,13 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
   onCreated: (order: OrderDetail) => Promise<void> | void;
 }) {
   const [message, setMessage] = useState("");
+  const [followUpMessage, setFollowUpMessage] = useState("");
   const [draft, setDraft] = useState<CaptureDraft | null>(null);
   const [recentDrafts, setRecentDrafts] = useState<CaptureDraft[]>([]);
+  const [conversationKey, setConversationKey] = useState(() => newConversationKey());
   const [customerId, setCustomerId] = useState("");
   const [productId, setProductId] = useState("");
-  const [size, setSize] = useState<(typeof sizes)[number]>("S");
+  const [size, setSize] = useState<"" | (typeof sizes)[number]>("");
   const [color, setColor] = useState("");
   const [price, setPrice] = useState("");
   const [advance, setAdvance] = useState("0");
@@ -57,6 +59,12 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const pendingSourceMessageId = useRef<string | null>(null);
+
+  const messageSourceId = () => {
+    if (!pendingSourceMessageId.current) pendingSourceMessageId.current = "internal:" + newConversationKey();
+    return pendingSourceMessageId.current;
+  };
 
   const product = useMemo(() => data.products.find((item) => item.id === productId), [data.products, productId]);
   const parsedMissing = draft?.missingFields.map((field) => fieldLabels[field] ?? field) ?? [];
@@ -64,9 +72,10 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
 
   const hydrateDraft = (next: CaptureDraft) => {
     setDraft(next);
+    if (next.conversationKey) setConversationKey(next.conversationKey);
     setCustomerId(next.payload.customerId ?? "");
     setProductId(next.payload.productId ?? "");
-    setSize(next.payload.size && sizes.includes(next.payload.size) ? next.payload.size : "S");
+    setSize(next.payload.size && sizes.includes(next.payload.size) ? next.payload.size : "");
     setColor(next.payload.color ?? "");
     setPrice(next.payload.agreedTotalPrice == null ? "" : String(next.payload.agreedTotalPrice));
     setAdvance(String(next.payload.advanceAmount ?? 0));
@@ -94,11 +103,35 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
     event.preventDefault();
     setError(""); setSuccess(""); setBusy(true);
     try {
-      const result = await captureApi.createDraft({ rawText: message });
+      const result = await captureApi.createDraft({
+        rawText: message,
+        conversationKey,
+        sourceMessageId: messageSourceId()
+      });
       hydrateDraft(result.draft);
+      pendingSourceMessageId.current = null;
       setRecentDrafts((current) => [result.draft, ...current.filter((item) => item.id !== result.draft.id)].slice(0, 8));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo analizar el mensaje.");
+    } finally { setBusy(false); }
+  };
+
+  const continueConversation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!draft || followUpMessage.trim().length < 2) return;
+    setError(""); setSuccess(""); setBusy(true);
+    try {
+      const result = await captureApi.createDraft({
+        rawText: followUpMessage,
+        conversationKey: draft.conversationKey ?? conversationKey,
+        sourceMessageId: messageSourceId()
+      });
+      hydrateDraft(result.draft);
+      pendingSourceMessageId.current = null;
+      setFollowUpMessage("");
+      setRecentDrafts((current) => [result.draft, ...current.filter((item) => item.id !== result.draft.id)].slice(0, 8));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo completar el borrador.");
     } finally { setBusy(false); }
   };
 
@@ -110,7 +143,7 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
         ...draft.payload,
         customerId: customerId || undefined,
         productId: productId || undefined,
-        size,
+        size: size || undefined,
         color: color.trim(),
         agreedTotalPrice: price ? Number(price) : undefined,
         advanceAmount: Number(advance || 0),
@@ -156,7 +189,7 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
         await onChanged();
         setDraft(null);
         setRecentDrafts((current) => current.filter((item) => item.id !== draft.id));
-        setMessage("");
+        setMessage(""); setFollowUpMessage(""); setConversationKey(newConversationKey());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo confirmar el borrador.");
@@ -168,7 +201,7 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
     setError(""); setBusy(true);
     try {
       await captureApi.rejectDraft(draft.id);
-      setDraft(null); setRecentDrafts((current) => current.filter((item) => item.id !== draft.id)); setMessage(""); setSuccess("Borrador descartado.");
+      setDraft(null); setRecentDrafts((current) => current.filter((item) => item.id !== draft.id)); setMessage(""); setFollowUpMessage(""); setConversationKey(newConversationKey()); setSuccess("Borrador descartado.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo descartar el borrador.");
     } finally { setBusy(false); }
@@ -198,21 +231,35 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
       {parsedMissing.length > 0 && <p className="warning">Falta completar: {parsedMissing.join(", ")}.</p>}
       {parsedAmbiguous.length > 0 && <p className="warning">Revisa porque puede haber ambigüedad en: {parsedAmbiguous.join(", ")}.</p>}
 
+      {(draft.missingFields.length > 0 || draft.ambiguousFields.length > 0) && <form className="capture-follow-up" onSubmit={continueConversation}>
+        <label>Continuar por chat
+          <textarea value={followUpMessage} onChange={(event) => setFollowUpMessage(event.target.value)} rows={3} placeholder={captureFollowUpPrompt(draft) ?? "Completa el dato faltante."} />
+        </label>
+        <div className="capture-footer"><p className="helper">La respuesta se añadirá al mismo borrador; todavía no se guarda ninguna operación.</p><button disabled={busy || followUpMessage.trim().length < 2}>{busy ? "Completando..." : "Completar borrador"}</button></div>
+      </form>}
+
       {draft.intent === "NEW_ORDER" && <OrderDraftFields data={data} draft={draft} customerId={customerId} setCustomerId={setCustomerId} productId={productId} setProductId={setProductId} size={size} setSize={setSize} color={color} setColor={setColor} price={price} setPrice={setPrice} advance={advance} setAdvance={setAdvance} method={method} setMethod={setMethod} delivery={delivery} setDelivery={setDelivery} product={product} />}
       {draft.intent === "NEW_CUSTOMER" && <div className="capture-grid"><label>Nombre *<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label><label>Teléfono<input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></label></div>}
       {draft.intent === "NEW_PURCHASE" && <OperationalDraftFields intent="NEW_PURCHASE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "NEW_EXPENSE" && <OperationalDraftFields intent="NEW_EXPENSE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "STOCK_ADJUSTMENT" && <OperationalDraftFields intent="STOCK_ADJUSTMENT" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "UNKNOWN" && <p className="muted">No pude identificar una operación segura. Prueba indicando pedido, compra, gasto o ajuste de stock.</p>}
-      <div className="capture-footer"><p className="helper">Nada se guarda en el negocio hasta confirmar.</p><div className="actions capture-actions"><button type="button" className="ghost danger" onClick={reject} disabled={busy}>Descartar</button>{draft.intent !== "UNKNOWN" && <button type="button" onClick={confirm} disabled={busy || !draftReady(draft.intent, { customerId, productId, color, customerName, materialId, operationQuantity, operationAmount, operationUnitCost, operationDescription })}>{busy ? "Guardando..." : "Confirmar y guardar"}</button>}</div></div>
+      <div className="capture-footer"><p className="helper">Nada se guarda en el negocio hasta confirmar.</p><div className="actions capture-actions"><button type="button" className="ghost danger" onClick={reject} disabled={busy}>Descartar</button>{draft.intent !== "UNKNOWN" && <button type="button" onClick={confirm} disabled={busy || !draftReady(draft.intent, { customerId, productId, size, color, customerName, materialId, operationQuantity, operationAmount, operationUnitCost, operationDescription })}>{busy ? "Guardando..." : "Confirmar y guardar"}</button>}</div></div>
     </section>}
   </div>;
 }
 
-function draftReady(intent: CaptureDraft["intent"], fields: { customerId: string; productId: string; color: string; customerName: string; materialId: string; operationQuantity: string; operationAmount: string; operationUnitCost: string; operationDescription: string }) {
-  if (intent === "NEW_ORDER") return Boolean(fields.customerId && fields.productId && fields.color.trim());
+function draftReady(intent: CaptureDraft["intent"], fields: { customerId: string; productId: string; size: string; color: string; customerName: string; materialId: string; operationQuantity: string; operationAmount: string; operationUnitCost: string; operationDescription: string }) {
+  if (intent === "NEW_ORDER") return Boolean(fields.customerId && fields.productId && fields.size && fields.color.trim());
   if (intent === "NEW_CUSTOMER") return fields.customerName.trim().length >= 2;
   if (intent === "NEW_PURCHASE") return Boolean(fields.materialId && Number(fields.operationQuantity) > 0 && (Number(fields.operationAmount) > 0 || Number(fields.operationUnitCost) > 0));
   if (intent === "NEW_EXPENSE") return Boolean(Number(fields.operationAmount) > 0 && fields.operationDescription.trim().length >= 2);
   if (intent === "STOCK_ADJUSTMENT") return Boolean(fields.materialId && Math.abs(Number(fields.operationQuantity)) > 0.0001 && fields.operationDescription.trim().length >= 2);
   return false;
+}
+
+function newConversationKey() {
+  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return "internal:" + random;
 }
 
 function OperationalDraftFields({ intent, data, materialId, setMaterialId, supplierId, setSupplierId, operationDate, setOperationDate, quantity, setQuantity, amount, setAmount, unitCost, setUnitCost, paymentMethod, setPaymentMethod, category, setCategory, description, setDescription, orderId, setOrderId }: {
@@ -273,8 +320,8 @@ function OrderDraftFields({ data, draft, customerId, setCustomerId, productId, s
   setCustomerId: (value: string) => void;
   productId: string;
   setProductId: (value: string) => void;
-  size: (typeof sizes)[number];
-  setSize: (value: (typeof sizes)[number]) => void;
+  size: "" | (typeof sizes)[number];
+  setSize: (value: "" | (typeof sizes)[number]) => void;
   color: string;
   setColor: (value: string) => void;
   price: string;
@@ -292,7 +339,7 @@ function OrderDraftFields({ data, draft, customerId, setCustomerId, productId, s
   return <div className="capture-grid">
     <label>Cliente *<select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Selecciona...</option>{data.customers.map((customer: Customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select><span className="field-hint">{draft.payload.customerName ? "Detectado: " + draft.payload.customerName : "No detectado"}</span></label>
     <label>Producto *<select value={productId} onChange={(event) => setProductId(event.target.value)}><option value="">Selecciona...</option>{data.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><span className="field-hint">{draft.payload.productName ? "Detectado: " + draft.payload.productName : "No detectado"}</span></label>
-    <label>Talla *<select value={size} onChange={(event) => setSize(event.target.value as (typeof sizes)[number])}>{sizes.map((item) => <option key={item}>{item}</option>)}</select></label>
+    <label>Talla *<select value={size} onChange={(event) => setSize(event.target.value as "" | (typeof sizes)[number])}><option value="">Selecciona...</option>{sizes.map((item) => <option key={item}>{item}</option>)}</select></label>
     <label>Color *<input value={color} onChange={(event) => setColor(event.target.value)} /></label>
     <label>Precio *<input type="number" min="0.01" step="0.01" value={price} placeholder={suggested ? money(suggested) : ""} onChange={(event) => setPrice(event.target.value)} /><span className="field-hint">{suggested ? "Sugerido: " + money(suggested) : "Selecciona un producto"}</span></label>
     <label>Adelanto<input type="number" min="0" step="0.01" value={advance} onChange={(event) => setAdvance(event.target.value)} /></label>

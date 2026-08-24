@@ -132,6 +132,7 @@ section { background: var(--paper); border: 1px solid var(--line); border-radius
 .capture-launch p:last-child { margin-bottom: 0; }
 .capture-message-form { margin-top: 13px; }
 .capture-draft { border-color: #d9cbed; box-shadow: 0 8px 24px rgba(103, 58, 183, .06); }
+.capture-follow-up { margin: 14px 0; padding: 13px; border: 1px solid #d9cbed; border-radius: 12px; background: #faf8ff; }
 .capture-quote { margin: 0 0 14px; padding: 12px 14px; border-left: 4px solid var(--magenta); border-radius: 0 10px 10px 0; background: #fff7fa; color: #4c3c47; }
 .capture-status { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 999px; background: var(--soft-purple); color: var(--purple); font-size: .76rem; font-weight: 800; white-space: nowrap; }
 .capture-status.pending { background: var(--soft-berry); color: var(--magenta-dark); }
