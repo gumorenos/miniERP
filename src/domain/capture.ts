@@ -386,6 +386,66 @@ export function captureIntentLabel(intent: CaptureIntent) {
   }[intent];
 }
 
+const captureFieldLabels: Record<string, string> = {
+  intent: "tipo de registro",
+  customer: "clienta",
+  product: "producto o modelo",
+  size: "talla",
+  color: "color",
+  promisedDeliveryDate: "fecha de entrega",
+  name: "nombre",
+  phone: "teléfono",
+  material: "material",
+  quantity: "cantidad",
+  amount: "monto total",
+  description: "descripción",
+  supplier: "proveedor",
+  paymentMethod: "método de pago"
+};
+
+export function captureFieldLabel(field: string) {
+  return captureFieldLabels[field] ?? field;
+}
+
+function captureFieldQuestion(intent: CaptureIntent, field: string, ambiguous: boolean) {
+  if (ambiguous && field === "customer") return "¿Cuál de las clientas es? Escribe su nombre completo.";
+  if (ambiguous && field === "product") return "¿Cuál de los productos o modelos es? Escribe el nombre exacto.";
+  if (ambiguous && field === "material") return "¿Cuál de los materiales es? Escribe el nombre exacto.";
+  if (ambiguous && field === "supplier") return "¿Cuál de los proveedores es? Escribe el nombre exacto.";
+  if (ambiguous && field === "promisedDeliveryDate") return "¿Qué fecha exacta de entrega confirmamos? Escríbela como DD/MM/AAAA.";
+
+  if (field === "customer") return "¿Para quién es el pedido? Indica el nombre de la clienta.";
+  if (field === "product") return "¿Qué producto o modelo es? Indica su nombre.";
+  if (field === "size") return "¿Qué talla necesita? Puede ser S, M, L, XL o XXL.";
+  if (field === "color") return "¿Qué color llevará?";
+  if (field === "promisedDeliveryDate") return "¿Para qué fecha se necesita? Escríbela como DD/MM/AAAA.";
+  if (field === "name") return "¿Cuál es el nombre de la nueva clienta?";
+  if (field === "phone") return "¿Cuál es su teléfono?";
+  if (field === "material") return intent === "STOCK_ADJUSTMENT"
+    ? "¿Qué material deseas ajustar? Indica el nombre exacto."
+    : "¿Qué material compraste? Indica el nombre exacto.";
+  if (field === "quantity") return intent === "STOCK_ADJUSTMENT"
+    ? "¿Qué cantidad deseas ajustar? Usa un número positivo para ingreso o negativo para salida."
+    : "¿Qué cantidad compraste? Indica también la unidad si aplica, por ejemplo: 5 metros.";
+  if (field === "amount") return "¿Cuál fue el monto total?";
+  if (field === "description") return intent === "STOCK_ADJUSTMENT"
+    ? "¿Cuál es el motivo del ajuste?"
+    : "¿Qué descripción breve le ponemos?";
+  return "¿Puedes indicar el " + captureFieldLabel(field) + "?";
+}
+
+export function captureFollowUpPrompt(input: Pick<CaptureParseResult, "intent" | "missingFields" | "ambiguousFields">) {
+  const fields = [...input.missingFields, ...input.ambiguousFields.filter((field) => !input.missingFields.includes(field))];
+  if (!fields.length) return null;
+  const questions = fields.slice(0, 3).map((field) => captureFieldQuestion(input.intent, field, input.ambiguousFields.includes(field)));
+  const remaining = fields.length - questions.length;
+  return [
+    "Para completar este borrador, respóndeme en un solo mensaje:",
+    ...questions.map((question, index) => `${index + 1}. ${question}`),
+    ...(remaining > 0 ? [`También falta indicar: ${fields.slice(3).map(captureFieldLabel).join(", ")}.`] : [])
+  ].join("\n");
+}
+
 export function isCaptureChannel(value: string): value is CaptureChannel {
   return (captureChannels as readonly string[]).includes(value);
 }

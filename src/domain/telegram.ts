@@ -1,4 +1,4 @@
-import { captureIntentLabel, type CaptureIntent, type CapturePayload } from "./capture";
+import { captureFieldLabel, captureFollowUpPrompt, captureIntentLabel, type CaptureIntent, type CapturePayload } from "./capture";
 import { formatMoney } from "./money";
 
 export type TelegramCaptureButton = {
@@ -55,8 +55,7 @@ export function telegramDraftCanConfirm(draft: TelegramDraftSummary) {
   }
   if (draft.intent !== "NEW_ORDER") return false;
   return draft.missingFields.length === 0
-    && !draft.ambiguousFields.includes("customer")
-    && !draft.ambiguousFields.includes("product");
+    && draft.ambiguousFields.length === 0;
 }
 
 export function telegramDraftText(draft: TelegramDraftSummary) {
@@ -110,15 +109,17 @@ export function telegramDraftText(draft: TelegramDraftSummary) {
     lines.push("", "Descripción: " + (payload.description ?? "no indicada"), "Monto: " + money(payload.amount));
   }
 
-  if (draft.missingFields.length) lines.push("", "Falta completar: " + draft.missingFields.join(", ") + ".");
-  if (draft.ambiguousFields.length) lines.push("Revisar ambigüedad: " + draft.ambiguousFields.join(", ") + ".");
+  if (draft.missingFields.length) lines.push("", "Falta completar: " + draft.missingFields.map(captureFieldLabel).join(", ") + ".");
+  if (draft.ambiguousFields.length) lines.push("Revisar: " + draft.ambiguousFields.map(captureFieldLabel).join(", ") + ".");
 
   if (telegramDraftCanConfirm(draft)) {
     lines.push("", "¿Confirmas que guarde estos datos?");
-  } else if (draft.intent !== "NEW_ORDER" && draft.intent !== "NEW_CUSTOMER" && draft.missingFields.length === 0) {
+  } else if (draft.intent !== "NEW_ORDER" && draft.intent !== "NEW_CUSTOMER" && draft.missingFields.length === 0 && draft.ambiguousFields.length === 0) {
     lines.push("", "Esta intención todavía queda como borrador; aún no se guarda en el negocio.");
-  } else if (draft.missingFields.length) {
-    lines.push("", "Envía otro mensaje con los datos faltantes. Este borrador seguirá pendiente.");
+  } else if (draft.missingFields.length || draft.ambiguousFields.length) {
+    const followUp = captureFollowUpPrompt(draft);
+    if (followUp) lines.push("", followUp);
+    lines.push("Este borrador seguirá pendiente hasta que los datos estén completos y confirmes.");
   }
 
   return shorten(lines.join("\n"), 3900);

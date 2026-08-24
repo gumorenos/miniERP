@@ -50,6 +50,29 @@ describe("Telegram capture helpers", () => {
     expect(text).toContain("¿Confirmas que guarde estos datos?");
   });
 
+  it("asks for missing fields with user-friendly labels and examples", () => {
+    const text = telegramDraftText({
+      ...baseDraft,
+      payload: { customerName: "María", color: "Azul" },
+      missingFields: ["product", "size"],
+      ambiguousFields: []
+    });
+    expect(text).toContain("Falta completar: producto o modelo, talla.");
+    expect(text).toContain("1. ¿Qué producto o modelo es? Indica su nombre.");
+    expect(text).toContain("2. ¿Qué talla necesita? Puede ser S, M, L, XL o XXL.");
+    expect(text).not.toContain("¿Confirmas");
+  });
+
+  it("asks for an exact date when delivery date is ambiguous", () => {
+    const text = telegramDraftText({
+      ...baseDraft,
+      ambiguousFields: ["promisedDeliveryDate"]
+    });
+    expect(text).toContain("fecha de entrega");
+    expect(text).toContain("DD/MM/AAAA");
+    expect(text).not.toContain("¿Confirmas");
+  });
+
   it("offers confirmation for complete operational drafts", () => {
     const purchase = {
       ...baseDraft,
