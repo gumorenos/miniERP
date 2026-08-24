@@ -14,7 +14,7 @@
 
 - SHA exacto de código para la próxima validación: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
 - El SHA local original `b37dfea6a5da0caab8e9c3dc7e9dfa6987a90ba1` no existía en GitHub. Su estado fue publicado correctamente como `8da2c1b...` con padre remoto `81d0a279...`.
-- Los commits posteriores de la rama incluyen documentación; OpenClaw debe probar y desplegar exactamente `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`, no el HEAD documental ni otro SHA.
+- La rama QA dedicada `qa/miniERP-auth-cookie-fix-a92` apunta exactamente a `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`. OpenClaw debe usar esa rama y SHA, no el HEAD documental de la rama de trabajo.
 - Producción no fue tocada durante la corrección del bloqueo.
 
 ## Qué incluye el candidato
