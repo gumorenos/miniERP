@@ -14,7 +14,7 @@
 Estado: publicado y validado localmente; aún no probado por OpenClaw ni desplegado.
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `72f6d5a932f65310357d6517da88cab95a52f70a`.
+- SHA funcional exacto: `6e74797d86d58473fbd67269e3074c9c6d7bb368`.
 
 Cambios principales:
 
@@ -25,6 +25,7 @@ Cambios principales:
 - Se conserva la intención original y solo se actualizan campos faltantes o ambiguos.
 - Confirmación y rechazo siguen siendo acciones explícitas; recibir texto nunca crea una operación definitiva.
 - Telegram directo pasa `chat_id:user_id`; el núcleo queda preparado para WhatsApp.
+- La UI interna permite continuar el mismo borrador por chat y exige talla real antes de confirmar.
 
 Validación local:
 

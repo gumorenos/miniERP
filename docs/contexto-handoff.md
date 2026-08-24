@@ -21,7 +21,7 @@
 Publicado como candidato pendiente de validar con OpenClaw:
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `72f6d5a932f65310357d6517da88cab95a52f70a`.
+- SHA funcional exacto: `6e74797d86d58473fbd67269e3074c9c6d7bb368`.
 
 - `capture_drafts.conversation_key` para asociar mensajes de una conversación.
 - Nueva tabla `capture_draft_messages` para idempotencia por mensaje y auditoría del texto recibido.
@@ -32,6 +32,8 @@ Publicado como candidato pendiente de validar con OpenClaw:
 - Repetir un `sourceMessageId` devuelve el borrador existente sin reaplicar la respuesta.
 - Telegram envía `conversationKey = chat_id:user_id`; WhatsApp podrá usar su identificador equivalente.
 - Si el borrador sigue incompleto, se envían nuevas preguntas; si queda confirmable, se envían los botones habituales.
+- La pantalla interna "Capturar por chat" también permite responder en varios turnos y conserva el mismo borrador.
+- La talla ya no aparece preseleccionada cuando falta; la confirmación permanece deshabilitada hasta resolverla.
 
 ## Validación local actual
 
