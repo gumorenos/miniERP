@@ -15,13 +15,13 @@ Validar y desplegar, solo con todos los gates en PASS, el candidato que incorpor
 - sesión web con cookie HttpOnly;
 - CSP/HSTS/Permissions-Policy;
 - autorización Telegram por chat y usuario;
-- script diagnóstico `npm run smoke:auth` con fallback de cookie compatible entre runtimes.
+- script diagnóstico `npm run smoke:auth` con lectura de cookie desde headers HTTP crudos, compatible entre runtimes.
 
 CANDIDATO EXACTO
 
 Repo: gumorenos/miniERP
 Rama: codex/capture-operational-confirmation
-SHA exacto: 98f771cdf6838cf00994546cbb29b20d4fdecc06
+SHA exacto: a92ac8d3efbdc8fef7ba3ea727078a996b775dca
 Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
@@ -71,7 +71,7 @@ DEPLOY CONDICIONADO
 Solo si QA, smoke auth y Docker pasan:
 1. crea backup PostgreSQL;
 2. etiqueta imagen/commit previo para rollback;
-3. despliega EXACTAMENTE 98f771cdf6838cf00994546cbb29b20d4fdecc06;
+3. despliega EXACTAMENTE a92ac8d3efbdc8fef7ba3ea727078a996b775dca;
 4. aplica migraciones;
 5. verifica contenedores healthy, /api/health=200 y smoke autenticado/no autenticado;
 6. si algo falla, ejecuta rollback controlado y reporta backup, imagen previa y estado final.
