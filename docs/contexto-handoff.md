@@ -13,9 +13,9 @@
 
 - Producción: `https://prueba.gumorenos.space`
 - Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656` hasta que OpenClaw confirme otro deploy.
-- Candidato de QA actualmente validado para reintentar auth smoke: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`.
-- Rama QA dedicada: `qa/miniERP-auth-cookie-fix-a92`.
-- El candidato a92 corrigió el harness de auth para leer `Set-Cookie` con headers HTTP nativos. OpenClaw debe verificar explícitamente el HEAD de esa rama y detenerse si no coincide.
+- Candidato exacto para la próxima QA: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+- Rama QA dedicada: `qa/miniERP-auth-cookie-fix-v2`.
+- Este candidato incluye la mejora conversacional y el refuerzo del smoke auth. OpenClaw debe verificar SHA y checkout detached exactos; no usar `a92…` ni otro fallback.
 
 ## Trabajo realizado en esta tarea
 
@@ -36,8 +36,8 @@ Validación local de esta mejora:
 
 ## Siguiente paso recomendado
 
-1. Esperar el resultado de OpenClaw sobre `a92ac8d3efbdc8fef7ba3ea727078a996b775dca`; si pasa auth smoke, que despliegue según el prompt.
-2. Ejecutar revisión/QA del nuevo candidato de seguimiento conversacional antes de desplegarlo.
+1. Ejecutar OpenClaw sobre `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`; si todos los gates y auth smoke pasan, desplegar exactamente ese SHA.
+2. Después del deploy, validar Telegram real cuando existan secretos y autorización.
 3. Después implementar conversación multi-turno real: asociar una respuesta posterior al borrador pendiente correcto, reparsear/mezclar datos y volver a mostrar confirmación sin duplicar registros.
 4. Luego configurar Telegram real con secretos privados y prueba sintética; WhatsApp queda para cuando exista contacto y proveedor.
 
