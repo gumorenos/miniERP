@@ -136,7 +136,10 @@ function publicApp() {
     }
     const authUser = { id: user.id, businessId: user.businessId, email: user.email, name: user.name };
     const session = await createSession(authUser);
-    return c.json({ token: session.token, expiresAt: session.expiresAt, user: authUser }, 200, { "set-cookie": sessionCookie(session.token, session.expiresAt) });
+    return c.json({ token: session.token, expiresAt: session.expiresAt, user: authUser }, 200, {
+      "set-cookie": sessionCookie(session.token, session.expiresAt),
+      "cache-control": "private, no-store"
+    });
   });
 
   app.use("/api/*", async (c, next) => {

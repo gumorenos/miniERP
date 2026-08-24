@@ -19,6 +19,14 @@ type JsonResponse = {
   setCookies: string[];
 };
 
+function rawSetCookieHeaders(rawHeaders: readonly string[]) {
+  const values: string[] = [];
+  for (let index = 0; index < rawHeaders.length - 1; index += 2) {
+    if (rawHeaders[index]?.toLowerCase() === "set-cookie" && rawHeaders[index + 1]) values.push(rawHeaders[index + 1]);
+  }
+  return values;
+}
+
 function requestJson(path: string, options: { method?: string; cookie?: string; body?: unknown } = {}) {
   const target = new URL(`${baseUrl}${path}`);
   const serializedBody = options.body === undefined ? undefined : JSON.stringify(options.body);
@@ -36,10 +44,11 @@ function requestJson(path: string, options: { method?: string; cookie?: string; 
         const body = (() => {
           try { return raw ? JSON.parse(raw) : {}; } catch { return { raw }; }
         })();
+        const setCookies = response.headers["set-cookie"] ?? rawSetCookieHeaders(response.rawHeaders);
         resolve({
           status: response.statusCode ?? 0,
           body,
-          setCookies: response.headers["set-cookie"] ?? []
+          setCookies
         });
       });
     });

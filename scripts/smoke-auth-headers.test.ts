@@ -16,4 +16,8 @@ describe("authenticated smoke cookie extraction", () => {
   it("handles an undefined raw header list", () => {
     expect(sessionCookieFromSetCookieHeaders(undefined)).toBe("");
   });
+
+  it("handles a combined Set-Cookie header representation", () => {
+    expect(sessionCookieFromSetCookieHeaders("other=value; Path=/, minierp_session=combined-value; Path=/; HttpOnly")).toBe("minierp_session=combined-value");
+  });
 });
