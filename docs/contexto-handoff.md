@@ -30,8 +30,8 @@
 Se publicó un candidato posterior en la rama QA dedicada:
 
 - Rama: `qa/miniERP-conversational-followup`.
-- HEAD actual de la rama QA: `c432b8a6252d642021a1c8227c4b80cdad219cc3`.
-- El código de la mejora está en el commit padre `15a4a6030e09e122c39644ee19dbe941534887dd`; `c432…` solo actualiza el roadmap.
+- HEAD actual de la rama QA: `677d77e20074606a544480c4301096327c65183d`.
+- El código de la mejora está en los commits padres `15a4a6030e09e122c39644ee19dbe941534887dd` y `c432…`; este commit solo actualiza el handoff.
 - Este candidato todavía no está desplegado ni aprobado por OpenClaw.
 
 Cambios:
