@@ -30,8 +30,8 @@
 Se publicó un candidato posterior en la rama QA dedicada:
 
 - Rama: `qa/miniERP-conversational-followup`.
-- HEAD actual de la rama QA: `677d77e20074606a544480c4301096327c65183d`.
-- El código de la mejora está en los commits padres `15a4a6030e09e122c39644ee19dbe941534887dd` y `c432…`; este commit solo actualiza el handoff.
+- El código funcional de la mejora está fijado en `15a4a6030e09e122c39644ee19dbe941534887dd`.
+- Los commits posteriores de esa rama (`c432…` y los de documentación) no cambian el código funcional. OpenClaw debe validar el SHA fijo, no el HEAD móvil.
 - Este candidato todavía no está desplegado ni aprobado por OpenClaw.
 
 Cambios:
@@ -43,7 +43,7 @@ Cambios:
 - La lógica de seguimiento está en el dominio de captura y puede reutilizarse desde Telegram y un futuro adaptador WhatsApp.
 - No se añadió dependencia de OpenClaw, Telegram real ni WhatsApp.
 
-Validación local del candidato 15a4:
+Validación local del código fijado en 15a4:
 
 - ESLint: PASS.
 - TypeScript: PASS.
