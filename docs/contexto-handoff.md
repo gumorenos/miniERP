@@ -30,7 +30,7 @@
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 48 pruebas en 12 archivos (incluye 3 pruebas del fallback de cookie).
+- Vitest: PASS, 48 pruebas en 12 archivos (incluye 3 pruebas de extracción de cookie desde headers crudos).
 - Build Vite: PASS.
 - `npm audit --omit=dev`: 0 vulnerabilidades.
 - `git diff --check`: PASS.
@@ -41,7 +41,7 @@
 OpenClaw verificó previamente el SHA `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`. En el candidato `a92ac8d3efbdc8fef7ba3ea727078a996b775dca` se añadió el diagnóstico de smoke:
 
 - QA aislado previo: PASS; 45/45 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers, ausencia de integración runtime y Docker.
-- Fix local del harness: PASS; 48/48 tests, incluyendo 3 pruebas del fallback de cookie.
+- Fix local del harness: PASS; 48/48 tests, incluyendo 3 pruebas de extracción desde headers HTTP crudos.
 - El nuevo SHA aún requiere QA aislado de OpenClaw y smoke autenticado productivo.
 - Deploy productivo anterior: bloqueado; no se aplicaron migraciones ni se tocó producción.
 - No se aplicaron migraciones ni se tocó producción; health público sigue 200 y producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
