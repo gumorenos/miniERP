@@ -14,57 +14,44 @@
 
 - Repositorio: `gumorenos/miniERP`.
 - Producción: `https://prueba.gumorenos.space`.
-- SHA productivo: `de5d3f6f5f088421fee8f3030652808076965656`.
-- Candidato funcional exacto: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
-- Rama de referencia: `qa/miniERP-auth-cookie-fix-v2`.
-- Los commits posteriores en la rama pueden actualizar documentación; el candidato funcional sigue siendo b6b51b0.
+- SHA productivo actual: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
+- SHA productivo anterior: `de5d3f6f5f088421fee8f3030652808076965656`.
+- Deploy de b6: PASS; no se requirió rollback.
+- Migraciones productivas: 15 aplicadas y registradas.
+- Health local y externo: HTTP 200.
+- Smoke autenticado HTTPS post-deploy: `AUTH_SMOKE_PASS`.
 
-## Diagnóstico comprobado del bloqueo AUTH_COOKIE_MISSING
+## Registro del deploy b6
 
-La producción actual `de5d3f6…` usa token Bearer y guarda el token en `localStorage`. Su login no envía `Set-Cookie`.
+- Backup: `/home/ubuntu/apps/minierp-samiiwara/backups/minierp-prod-before-b6b51b0-20260823-2359.dump`.
+- Rollback tag: `rollback/minierp-prod-de5d3f6-20260823-2359`.
+- Imagen desplegada: `sha256:29866fca…`.
+- QA: 51/51 tests, 0 vulnerabilidades, lint/typecheck/build PASS.
+- QA aislado: migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo 409 y Telegram simulado PASS.
 
-El candidato `b6b51b0…` cambia la autenticación a cookie `HttpOnly` y sí agrega `Set-Cookie`.
+## Causa raíz ya resuelta
 
-Los prompts anteriores exigían el smoke nuevo con cookie contra producción vieja antes de desplegar el código nuevo. Ese gate era circular y nunca podía aprobar.
+La producción anterior usaba Bearer y no emitía cookie. El candidato b6 introdujo `minierp_session` HttpOnly. Los prompts anteriores exigían cookie contra la producción vieja antes del deploy, creando un gate circular. El procedimiento fue corregido y b6 pasó el smoke aislado y el smoke productivo posterior al deploy.
 
-Flujo correcto:
+## Funcionalidad actualmente desplegada
 
-1. Validar el candidato aislado, incluyendo `npm run smoke:auth` contra la instancia candidata.
-2. En producción antigua comprobar health y, si aplica, el login legacy; no exigir cookie.
-3. Con todo QA en PASS, crear backup e imagen de rollback.
-4. Desplegar exactamente `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`.
-5. Ejecutar el smoke estricto de cookie contra producción ya actualizada.
-6. Si falla el smoke post-deploy, hacer rollback inmediato.
-
-El token Bearer legacy no puede sustituir la validación de cookie del candidato.
-
-## Funcionalidad incluida
-
-- Hardening transaccional, locks e idempotencia para operaciones de taller.
+- Hardening transaccional, locks e idempotencia.
 - Protección contra stock negativo y doble consumo.
-- Sesión browser mediante cookie `HttpOnly`; eliminación de token en `localStorage`.
+- Sesión browser mediante cookie HttpOnly; sin token en localStorage.
 - Headers de seguridad y autorización Telegram por chat/usuario.
 - Captura conversacional para pedido, cliente, compra, gasto y ajuste.
-- Preguntas legibles para datos faltantes o ambiguos y bloqueo de confirmación hasta aclararlos.
-- Smoke auth con extracción de `Set-Cookie`, `rawHeaders` y representaciones combinadas.
-
-## QA existente
-
-- OpenClaw ya confirmó 51/51 tests, lint, typecheck, build, 0 vulnerabilidades.
-- Migraciones: 15/15 desde cero, idempotencia y copia de producción PASS.
-- E2E, concurrencia, stock negativo y Docker PASS.
-- Falta repetir el flujo con el smoke cookie en el entorno correcto y, si pasa, desplegar.
+- Preguntas legibles para campos faltantes o ambiguos.
+- Confirmación humana antes de guardar.
+- Smoke auth robusto para Set-Cookie, rawHeaders y headers combinados.
 
 ## Próximos pasos
 
-1. Ejecutar el prompt actualizado de OpenClaw sobre b6b51b0.
-2. Con deploy PASS, probar login/cookie real y activar Telegram con secretos privados.
-3. Implementar conversación multi-turno real sin duplicados.
-4. Evaluar WhatsApp cuando exista contacto con la usuaria.
+1. Configurar Telegram real con secretos privados, allowlists y webhook HTTPS.
+2. Ejecutar prueba sintética real: mensaje, borrador, confirmar, rechazar y repetición idempotente.
+3. Validar la experiencia con la usuaria.
+4. Implementar conversación multi-turno: asociar respuestas posteriores al borrador pendiente, mezclar campos y volver a pedir confirmación sin duplicar registros.
+5. Evaluar WhatsApp cuando exista contacto con la usuaria y se defina proveedor/API.
 
-## Documentos
+## Estado de OpenClaw
 
-- `docs/openclaw-qa-prompt.md`: prompt compacto para Telegram.
-- `docs/openclaw-qa-operations-prompt.md`: procedimiento detallado.
-- `docs/qa-pendiente.md`: gates y pendientes.
-- `docs/roadmap.md`: roadmap funcional.
+OpenClaw no es parte de la aplicación. No ejecutar nuevamente el prompt de deploy de b6: ya está desplegado. Para cualquier nueva funcionalidad, ChatGPT debe publicar primero un nuevo SHA y preparar un prompt autocontenido con ese candidato exacto.
