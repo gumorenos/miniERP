@@ -28,12 +28,12 @@
 - Rama: `codex/capture-operational-confirmation`.
 - Candidato remoto exacto: `8da2c1b48cc3a0ef03d3cda20ccd1917e5cb47f0`.
 - Candidato siguiente exacto: `a92ac8d3efbdc8fef7ba3ea727078a996b775dca` (lee `Set-Cookie` desde headers HTTP crudos y añade 3 tests; requiere repetir QA antes de desplegar).
-- Estado: QA aislado PASS; deploy bloqueado antes de backup por `AUTH_SMOKE_BLOCKED`.
+- Estado del candidato anterior: QA aislado PASS; deploy bloqueado por `AUTH_COOKIE_MISSING`. Nuevo candidato con fix de lectura cruda pendiente de QA.
 - Producción permanece en `de5d3f6f5f088421fee8f3030652808076965656`; el candidato no quedó activo.
 - Validación local del candidato anterior: ESLint PASS, TypeScript PASS, 45 pruebas PASS en 11 archivos, build Vite PASS y audit de producción sin vulnerabilidades.
 - Validación local del fix del harness: ESLint PASS, TypeScript PASS, 48 pruebas PASS en 12 archivos y build Vite PASS.
 - QA OpenClaw: migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, cookies/headers y Docker: PASS.
-- Bloqueo anterior: `APP_USER_PASSWORD` ausente. En el siguiente intento, el login sí devolvió cookie pero el harness falló porque `getSetCookie()` retornó `undefined`; ese harness ya fue corregido en el nuevo candidato.
+- Bloqueos anteriores: primero `APP_USER_PASSWORD` ausente; luego el login fue aceptado pero el runtime de OpenClaw no expuso la cookie mediante `getSetCookie()` ni el fallback de `Headers`. El nuevo candidato lee `Set-Cookie` desde headers HTTP crudos.
 - Cambios: locks por pedido y material; corte, bordado y transiciones atómicos; consumos de ensamblaje/empaque protegidos contra carreras; ajustes manuales y edición/anulación de compras protegidos contra stock negativo concurrente; E2E concurrente para acciones operativas.
 - Hardening adicional: sesión web por cookie `HttpOnly` sin persistencia de token en `localStorage`; CSP, HSTS y Permissions-Policy; webhook Telegram restringido por chat y usuario mediante `TELEGRAM_ALLOWED_USER_IDS`.
 - El E2E requiere una base PostgreSQL efímera para ejecutarse.
@@ -91,7 +91,7 @@ El webhook directo es `POST /api/integrations/telegram/webhook`. No activar el e
 
 ## Condición de aprobación
 
-El candidato anterior `fd1b9a7017433ab23d1fb1b4dad66f70befa3ca7` pasó QA, pero no quedó desplegado. El nuevo candidato `98f771cdf6838cf00994546cbb29b20d4fdecc06` corrige el fallo del harness y requiere QA de OpenClaw antes de desplegar. Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
+El candidato `98f771cdf6838cf00994546cbb29b20d4fdecc06` pasó QA, pero no quedó desplegado por `AUTH_COOKIE_MISSING`. El nuevo candidato `a92ac8d3efbdc8fef7ba3ea727078a996b775dca` lee la cookie desde headers HTTP crudos y requiere QA de OpenClaw antes de desplegar. Producción sigue en `de5d3f6f5f088421fee8f3030652808076965656`.
 
 ## Comandos sugeridos
 
