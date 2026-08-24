@@ -14,7 +14,7 @@ Validar y, solo si todo está correcto, desplegar el candidato que corrige concu
 CANDIDATO EXACTO
 
 Repo: gumorenos/miniERP
-Rama QA inmutable: qa/miniERP-auth-cookie-fix-a92
+Rama QA dedicada (HEAD fijado): qa/miniERP-auth-cookie-fix-a92
 SHA: a92ac8d3efbdc8fef7ba3ea727078a996b775dca
 Producción actual: de5d3f6f5f088421fee8f3030652808076965656
 URL: https://prueba.gumorenos.space
