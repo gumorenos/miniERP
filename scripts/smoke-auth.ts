@@ -1,3 +1,5 @@
+import { responseSetCookie } from "./smoke-auth-headers";
+
 export {};
 
 const baseUrl = process.env.AUTH_SMOKE_BASE_URL ?? process.env.E2E_BASE_URL ?? "http://localhost:3000";
@@ -25,9 +27,7 @@ if (!loginResponse.ok) {
   fail("AUTH_LOGIN_FAILED", `HTTP ${loginResponse.status}`);
 }
 
-const setCookie = typeof loginResponse.headers.getSetCookie === "function"
-  ? loginResponse.headers.getSetCookie()[0]
-  : loginResponse.headers.get("set-cookie") ?? "";
+const setCookie = responseSetCookie(loginResponse.headers);
 const cookie = setCookie.match(/(?:^|;\s*)(minierp_session=[^;]+)/)?.[1] ?? "";
 if (!cookie) fail("AUTH_COOKIE_MISSING", "El login fue exitoso pero no devolvió minierp_session");
 
