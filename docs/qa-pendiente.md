@@ -14,7 +14,7 @@
 Estado: publicado y validado localmente; aún no probado por OpenClaw ni desplegado.
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `6e74797d86d58473fbd67269e3074c9c6d7bb368`.
+- SHA funcional exacto: `65dc38827fed4c30b52c7c194abbba023d27ac92`.
 
 Cambios principales:
 

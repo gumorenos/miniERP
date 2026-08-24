@@ -7,7 +7,7 @@ Contexto: Samiiwara miniERP. Producción sigue en b6b51b0 y está sana. Este can
 
 Repo gumorenos/miniERP
 Rama qa/miniERP-conversation-multiturn
-SHA EXACTO 6e74797d86d58473fbd67269e3074c9c6d7bb368
+SHA EXACTO 65dc38827fed4c30b52c7c194abbba023d27ac92
 URL https://prueba.gumorenos.space
 
 Verifica existencia, checkout detached y SHA exacto. Si falla: STOP, sin usar HEAD/otro SHA.

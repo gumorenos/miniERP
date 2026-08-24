@@ -21,7 +21,7 @@
 Publicado como candidato pendiente de validar con OpenClaw:
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `6e74797d86d58473fbd67269e3074c9c6d7bb368`.
+- SHA funcional exacto: `65dc38827fed4c30b52c7c194abbba023d27ac92`.
 
 - `capture_drafts.conversation_key` para asociar mensajes de una conversación.
 - Nueva tabla `capture_draft_messages` para idempotencia por mensaje y auditoría del texto recibido.

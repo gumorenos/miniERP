@@ -9,7 +9,7 @@ Contexto: miniERP es el ERP de Samiiwara. Producción está sana en b6b51b0 (no 
 
 Repo: gumorenos/miniERP
 Rama QA: qa/miniERP-conversation-multiturn
-SHA exacto candidato: 6e74797d86d58473fbd67269e3074c9c6d7bb368
+SHA exacto candidato: 65dc38827fed4c30b52c7c194abbba023d27ac92
 Producción: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
