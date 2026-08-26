@@ -5,8 +5,8 @@
 ## Base productiva
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`
-- Estado: PASS en health, smoke autenticado HTTPS, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado y Docker.
+- SHA desplegado: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`
+- Estado: PASS en health, smoke autenticado HTTPS, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado 19/19 y Docker.
 - OpenClaw no forma parte del runtime.
 
 ## Gates generales
@@ -25,11 +25,11 @@
 
 El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stock una sola vez, bordado, vencimiento, pago final, entrega/cierre y margen.
 
-## Candidato pendiente
+## Último candidato desplegado
 
 - Rama: `qa/miniERP-conversation-multiturn`.
 - SHA exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
-- Estado: QA local PASS; pendiente de QA remoto y eventual deploy.
+- Estado: QA remoto PASS y desplegado exactamente en producción.
 
 Validación local actual:
 
@@ -39,21 +39,16 @@ Validación local actual:
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
-## Checklist pendiente del candidato
+## Gates completados del candidato
 
-- [ ] Verificar existencia del SHA y checkout detached exacto; sin fallback.
-- [ ] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
-- [ ] Migrar desde cero 0001–0016.
-- [ ] Repetir migraciones sobre copia con borradores históricos y comprobar backfill.
-- [ ] Crear un borrador incompleto, enviar una respuesta posterior y conservar el mismo `draftId`.
-- [ ] Resolver múltiples turnos desde Telegram simulado y desde la UI interna.
-- [ ] Repetir mensaje inicial y respuesta; no duplicar borrador ni operación.
-- [ ] Ejecutar respuestas concurrentes y confirmación concurrente.
-- [ ] Verificar preguntas, botones, confirmación y rechazo Telegram.
-- [ ] Confirmar que la UI no preselecciona talla S cuando falta.
-- [ ] Confirmar ausencia de referencias OpenClaw en el runtime.
-- [ ] Docker build y health aislado.
-- [ ] Solo con todo PASS: backup, deploy exacto, migraciones productivas, health y smoke.
+- [x] Verificar existencia del SHA y checkout detached exacto; sin fallback.
+- [x] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
+- [x] Migrar desde cero 0001–0016 y repetir migraciones idempotentes.
+- [x] Validar multi-turno, mismo `draftId`, replay e idempotencia.
+- [x] Validar Telegram simulado, UI interna, botones, confirmación y rechazo.
+- [x] Confirmar que la UI no preselecciona talla S cuando falta.
+- [x] Confirmar ausencia de referencias OpenClaw en el runtime.
+- [x] Docker build, backup, deploy exacto, migraciones productivas, health y smoke autenticado.
 
 ## QA de Telegram real — pendiente separado
 
@@ -64,7 +59,7 @@ Cuando existan credenciales privadas y chat autorizado:
 - [ ] Probar mensaje, respuesta faltante, confirmación, rechazo y replay.
 - [ ] Confirmar que Telegram no pasa por OpenClaw.
 
-No probar contra producción durante QA ni inventar credenciales.
+No probar contra producción durante QA ni inventar credenciales. La prueba real de Telegram sigue separada y pendiente.
 
 ## QA aislado
 
