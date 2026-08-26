@@ -16,9 +16,9 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 ## Operación del taller
 
 - Automatización de WhatsApp mediante proveedor/API. La etapa actual solo genera enlaces y mensajes para revisión humana antes de enviar.
-- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`, con QA aislado, E2E, concurrencia/idempotencia, migraciones y Docker PASS. Telegram aún requiere secretos privados, webhook y prueba sintética real. OpenClaw queda fuera del runtime.
+- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`, con QA aislado, E2E, concurrencia/idempotencia, migraciones 0016, Docker, health y smoke autenticado PASS. Telegram real aún requiere secretos privados, webhook y prueba con el bot autorizado. OpenClaw queda fuera del runtime.
 - **Seguimiento conversacional UX — implementado localmente.** Los borradores incompletos o ambiguos muestran preguntas agrupadas y la confirmación sigue bloqueada hasta resolverlas.
-- **Captura multi-turno — publicada, pendiente de QA.** El candidato `eb455839c42ef0b6e411edfc4f356dae3fe00b1d` añade captura por conversación en Telegram y en la UI interna, junto con la migración 0016. Asocia mensajes, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados. No desplegar hasta pasar QA aislado.
+- **Captura multi-turno — publicada y desplegada.** `eb455839c42ef0b6e411edfc4f356dae3fe00b1d` añade captura por conversación en Telegram y en la UI interna, junto con la migración 0016. Asocia mensajes, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados. Falta probar el webhook con Telegram real.
 - **Hardening post-code-review — ya validado y desplegado como parte de b6.** Mantener regresión de carreras de estado/stock y confirmaciones idempotentes en cada candidato posterior.
 - Intenciones iniciales de captura: nuevo pedido, nuevo cliente, nueva compra, nuevo gasto y ajuste de stock. La IA propone datos; nunca crea silenciosamente.
 - Audio e imágenes quedan después de estabilizar la captura textual y la confirmación.
