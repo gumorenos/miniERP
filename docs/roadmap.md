@@ -1,5 +1,7 @@
 # Samiiwara miniERP — Roadmap pendiente
 
+Última actualización: 2026-08-25. Documentación canónica: `continuidad.md`, `qa.md`, `openclaw-qa.md` y este archivo.
+
 Este documento conserva explícitamente decisiones postergadas. Un ítem pendiente no debe interpretarse como descartado.
 
 ## Seguridad / operación

@@ -1,52 +1,85 @@
-# QA
+# QA — miniERP / Samiiwara
 
-Required gates:
+Última actualización: 2026-08-25
 
+## Base productiva
+
+- URL: `https://prueba.gumorenos.space`
+- SHA desplegado: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`
+- Estado: PASS en health, smoke autenticado HTTPS, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado y Docker.
+- OpenClaw no forma parte del runtime.
+
+## Gates generales
+
+- `npm ci`
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
-- migration against a test PostgreSQL database
-- container health checks
-- `npm run test:e2e`
+- Migraciones contra PostgreSQL efímero.
+- Migraciones idempotentes sobre copia de producción.
+- `npm run test:e2e`.
+- Pruebas de concurrencia e idempotencia.
+- Docker build y healthcheck.
+- Smoke autenticado antes de cualquier deploy.
 
-The E2E flow covers customer creation, order creation, deposit, cut stock deduction exactly once, embroidery send/receive, overdue embroidery derivation, final payment history, delivery/close and margin calculation.
+El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stock una sola vez, bordado, vencimiento, pago final, entrega/cierre y margen.
 
-## Development QA
+## Candidato pendiente
 
-The development Compose stack may use the normal demo seed and must never contain real customer data.
+- Rama: `qa/miniERP-conversation-multiturn`.
+- SHA exacto: `65dc38827fed4c30b52c7c194abbba023d27ac92`.
+- Estado: QA local PASS; pendiente de QA remoto y eventual deploy.
 
-## Production-like isolated QA
+Validación local actual:
 
-Production intentionally does not run demo seed data. For a disposable isolated QA database, use the dedicated one-shot fixture service instead of enabling the development seed.
+- ESLint: PASS.
+- TypeScript: PASS.
+- Vitest: PASS, 55/55.
+- Build Vite: PASS.
+- `git diff --check`: PASS.
 
-Sequence:
+## Checklist pendiente del candidato
 
-1. Start `compose.prod.yml` with a new project/volume and temporary secrets.
-2. Create the QA user:
+- [ ] Verificar existencia del SHA y checkout detached exacto; sin fallback.
+- [ ] Ejecutar `npm ci` y `npm run qa` en worktree aislado.
+- [ ] Migrar desde cero 0001–0016.
+- [ ] Repetir migraciones sobre copia con borradores históricos y comprobar backfill.
+- [ ] Crear un borrador incompleto, enviar una respuesta posterior y conservar el mismo `draftId`.
+- [ ] Resolver múltiples turnos desde Telegram simulado y desde la UI interna.
+- [ ] Repetir mensaje inicial y respuesta; no duplicar borrador ni operación.
+- [ ] Ejecutar respuestas concurrentes y confirmación concurrente.
+- [ ] Verificar preguntas, botones, confirmación y rechazo Telegram.
+- [ ] Confirmar que la UI no preselecciona talla S cuando falta.
+- [ ] Confirmar ausencia de referencias OpenClaw en el runtime.
+- [ ] Docker build y health aislado.
+- [ ] Solo con todo PASS: backup, deploy exacto, migraciones productivas, health y smoke.
+
+## QA de Telegram real — pendiente separado
+
+Cuando existan credenciales privadas y chat autorizado:
+
+- [ ] Configurar variables solo en el servidor.
+- [ ] Registrar webhook HTTPS directo de miniERP.
+- [ ] Probar mensaje, respuesta faltante, confirmación, rechazo y replay.
+- [ ] Confirmar que Telegram no pasa por OpenClaw.
+
+No probar contra producción durante QA ni inventar credenciales.
+
+## QA aislado
+
+La base de QA debe ser desechable y nunca contener datos reales. Para E2E production-like:
 
 ```sh
 docker compose --env-file .env.production -f compose.prod.yml --profile ops run --rm bootstrap-user
-```
-
-3. Seed disposable E2E fixtures only after explicitly acknowledging the isolated database:
-
-```sh
 E2E_FIXTURES_CONFIRM=isolated-qa-db \
   docker compose --env-file .env.production -f compose.prod.yml --profile qa run --rm qa-fixtures
-```
-
-4. Run the API flow against the localhost-bound app:
-
-```sh
 E2E_BASE_URL=http://127.0.0.1:${APP_HOST_PORT} npm run test:e2e
 ```
 
-The fixture service refuses to run unless `E2E_FIXTURES_CONFIRM=isolated-qa-db`, requires the target application user to exist, and refuses to seed a business that already contains products, materials or orders. Never run it against a real pilot database.
+El fixture exige confirmación explícita y rechaza bases con datos existentes.
 
-## Authentication smoke diagnostic
-
-For a deploy smoke using a real pilot account, run:
+## Smoke autenticado
 
 ```sh
 AUTH_SMOKE_BASE_URL=https://prueba.gumorenos.space \
@@ -55,17 +88,4 @@ AUTH_SMOKE_BASE_URL=https://prueba.gumorenos.space \
   npm run smoke:auth
 ```
 
-The command never prints the password or session token. It distinguishes malformed input (`AUTH_PAYLOAD_INVALID`, HTTP 400), invalid credentials (`AUTH_CREDENTIALS_INVALID`, HTTP 401), temporary-password access (`AUTH_PASSWORD_CHANGE_REQUIRED`) and successful operational access. Do not put real credentials in Git or Telegram messages.
-
-## Authentication QA
-
-For pilot hardening validate at minimum:
-
-- passwords are `scrypt` hashes, not plaintext;
-- bearer tokens are stored only as SHA-256 hashes;
-- sessions persist across app restarts;
-- logout marks the session revoked;
-- expired and disabled-user sessions return 401;
-- password rotation marks all active sessions revoked and preserves their rows for audit;
-- old password and old sessions fail after rotation;
-- the long-running app container does not receive bootstrap credentials.
+Nunca guardar credenciales, cookies o tokens en Git, logs o Telegram.
