@@ -9,7 +9,7 @@ Enviar por Telegram:
 ```text
 QA + DEPLOY CONDICIONADO — miniERP
 
-Contexto: miniERP es el ERP de Samiiwara. Producción está sana en b6b51b0 (no usarla para pruebas). OpenClaw solo hace QA, backup y deploy; no se integra al runtime ni a Telegram/WhatsApp funcional.
+Contexto: miniERP es el ERP de Samiiwara. Producción está sana en eb455839c42ef0b6e411edfc4f356dae3fe00b1d (no usarla para pruebas). OpenClaw solo hace QA, backup y deploy; no se integra al runtime ni a Telegram/WhatsApp funcional.
 
 Repo: gumorenos/miniERP
 Rama QA: qa/miniERP-conversation-multiturn
