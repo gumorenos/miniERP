@@ -32,6 +32,7 @@ services:
       TELEGRAM_BUSINESS_ID: ${TELEGRAM_BUSINESS_ID:-}
       TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
     command: sh -c "npm run db:migrate && npm start"
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-3010}:3000"
