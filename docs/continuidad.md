@@ -13,15 +13,16 @@
 ## Estado productivo
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `b6b51b0bc637e1b8504c0964c985f37ab96f67d0`
-- Último resultado: PASS en QA aislado, 51/51 tests, migraciones 15/15, E2E, concurrencia/idempotencia, stock negativo, Telegram simulado, Docker, health y smoke autenticado HTTPS.
-- Producción permanece intacta mientras se valida el siguiente candidato.
+- SHA desplegado: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`
+- Último resultado: PASS en QA aislado, 55/55 tests, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado 19/19, Docker, backup, health y smoke autenticado HTTPS.
+- Backup previo validado: `/home/ubuntu/apps/minierp-samiiwara/backups/minierp-prod-pre-eb455839-20260825T2121-0500.dump`.
+- Producción quedó desplegada exactamente en el candidato; no fue necesario rollback.
 
 ## Candidato actual
 
 - Rama: `qa/miniERP-conversation-multiturn`.
 - SHA funcional exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
-- Estado: publicado y validado localmente; pendiente de QA remoto y eventual deploy.
+- Estado: QA remoto PASS y desplegado en producción.
 
 Incluye:
 
@@ -35,21 +36,22 @@ Incluye:
 - UI interna “Capturar por chat” con seguimiento multi-turno.
 - La talla no aparece preseleccionada; confirmar queda bloqueado mientras falten datos.
 
-## Validación local
+## Validación
 
 - ESLint: PASS.
 - TypeScript: PASS.
 - Vitest: PASS, 55/55 pruebas.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
+- QA remoto/OpenClaw: PASS; Telegram simulado 19/19, health y smoke autenticado local/público PASS.
 
 ## Próximo orden de trabajo
 
-1. Ejecutar QA aislado del SHA exacto y, si todos los gates pasan, desplegarlo.
-2. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados.
-3. Observar el uso real y ajustar parser/preguntas con evidencia.
-4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo.
-5. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
+1. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados; registrar el webhook directo y probar el flujo completo.
+2. Observar el uso real y ajustar parser/preguntas con evidencia.
+3. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
+4. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
+5. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
 
 ## Riesgos heredados para vigilar
 
