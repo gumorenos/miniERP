@@ -14,7 +14,7 @@ export function NewOrderForm({ data, onCreated, onChanged, onCancel }: { data: B
   const [quickCreate, setQuickCreate] = useState<"customer" | "product" | null>(null);
   const [customerId, setCustomerId] = useState(preferredId(data.customers, remembered?.customerId));
   const [productId, setProductId] = useState(preferredId(data.products, remembered?.productId));
-  const [size, setSize] = useState<(typeof sizes)[number]>(sizes.includes(remembered?.size as (typeof sizes)[number]) ? remembered?.size as (typeof sizes)[number] : "S");
+  const [size, setSize] = useState<"" | (typeof sizes)[number]>(sizes.includes(remembered?.size as (typeof sizes)[number]) ? remembered?.size as (typeof sizes)[number] : "");
   const [color, setColor] = useState(remembered?.color || "Negro");
   const initialProduct = data.products.find((item) => item.id === productId) ?? data.products[0];
   const [delivery, setDelivery] = useState(initialProduct ? suggestedDeliveryDate(Number(initialProduct.leadTimeDays ?? 25)) : "");
@@ -61,7 +61,7 @@ export function NewOrderForm({ data, onCreated, onChanged, onCancel }: { data: B
         <div className="capture-grid">
           <div className="input-with-action"><label>Cliente *<select name="order-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)} required><option value="">Selecciona...</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><button className="mini-action" type="button" onClick={() => setQuickCreate("customer")}>+ Cliente</button></div>
           <div className="input-with-action"><label>Producto *<select name="order-product" value={productId} onChange={(event) => setProductId(event.target.value)} required><option value="">Selecciona...</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="mini-action" type="button" onClick={() => setQuickCreate("product")}>+ Producto</button></div>
-          <label>Talla *<select name="order-size" value={size} onChange={(event) => setSize(event.target.value as (typeof sizes)[number])}>{sizes.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Talla *<select name="order-size" value={size} onChange={(event) => setSize(event.target.value as "" | (typeof sizes)[number])} required><option value="">Selecciona...</option>{sizes.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label>Color *<input name="order-color" value={color} onChange={(event) => setColor(event.target.value)} required /></label>
           <label>Precio *<input name="order-price" type="number" min="0.01" step="0.01" value={agreedTotalPrice} onChange={(event) => setAgreedTotalPrice(Number(event.target.value))} required /><span className="field-hint">Sugerido para {size}: S/ {suggestedPrice.toFixed(2)}</span></label>
           <label>Adelanto<input name="order-advance" type="number" min="0" max={agreedTotalPrice} step="0.01" value={advance} onChange={(event) => setAdvance(Number(event.target.value))} /></label>
@@ -70,7 +70,7 @@ export function NewOrderForm({ data, onCreated, onChanged, onCancel }: { data: B
         <button className="disclosure" type="button" onClick={() => setDetails((current) => !current)}>{details ? "Ocultar detalles" : "Más detalles"} <span>{details ? "▴" : "▾"}</span></button>
         {details && <div className="details-panel"><label>Método del adelanto<select name="order-advance-method" value={method} onChange={(event) => setMethod(event.target.value)}>{methods.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{advance > 0 && <label>Fecha del adelanto<input name="order-advance-date" type="date" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} /></label>}<label>Notas del pedido<textarea name="order-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Medidas, referencia, indicaciones..." /></label></div>}
         {error && <p className="error" role="alert">{error}</p>}
-        <div className="capture-footer"><p className="price">Total: S/ {agreedTotalPrice.toFixed(2)}{advance > 0 && <small> · saldo S/ {(agreedTotalPrice - advance).toFixed(2)}</small>}</p><button disabled={saving || !customerId || !productId || !color.trim() || !delivery || agreedTotalPrice <= 0}>{saving ? "Guardando..." : "Registrar pedido"}</button></div>
+        <div className="capture-footer"><p className="price">Total: S/ {agreedTotalPrice.toFixed(2)}{advance > 0 && <small> · saldo S/ {(agreedTotalPrice - advance).toFixed(2)}</small>}</p><button disabled={saving || !customerId || !productId || !size || !color.trim() || !delivery || agreedTotalPrice <= 0}>{saving ? "Guardando..." : "Registrar pedido"}</button></div>
       </form>
     </section>
     {quickCreate === "customer" && <QuickCreateModal title="Nuevo cliente" description="Solo necesitamos esto para continuar con el pedido." onClose={() => setQuickCreate(null)}><QuickCustomerForm onCreated={createCustomer} onCancel={() => setQuickCreate(null)} /></QuickCreateModal>}

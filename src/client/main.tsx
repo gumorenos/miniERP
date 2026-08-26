@@ -130,7 +130,7 @@ function NewOrder({ data, onCreated }: { data: Bootstrap; onCreated: (order: Ord
   const [productId, setProductId] = useState(product?.id ?? "");
   const selectedProduct = data.products.find((item) => item.id === productId) ?? product;
   const leadTimeDays = Number((selectedProduct as unknown as { leadTimeDays?: number } | undefined)?.leadTimeDays ?? 25);
-  const [size, setSize] = useState("S");
+  const [size, setSize] = useState("");
   const [color, setColor] = useState("Negro");
   const price = useMemo(() => {
     const sizeRow = selectedProduct?.sizePrices.find((row) => row.size === size);
@@ -147,11 +147,11 @@ function NewOrder({ data, onCreated }: { data: Bootstrap; onCreated: (order: Ord
     <form className="form" onSubmit={async (event) => { event.preventDefault(); setError(""); try { onCreated(await api.createOrder({ customerId, productId, size, color, quantity: 1, agreedTotalPrice: price, promisedDeliveryDate: promisedDeliveryDate || null })); } catch (err) { setError(err instanceof Error ? err.message : "No se pudo crear"); } }}>
       <label>Cliente<select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>{data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
       <label>Producto<select value={productId} onChange={(event) => setProductId(event.target.value)}>{data.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Talla<select value={size} onChange={(event) => setSize(event.target.value)}>{["S", "M", "L", "XL", "XXL"].map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label>Talla *<select value={size} onChange={(event) => setSize(event.target.value)} required><option value="">Selecciona...</option>{["S", "M", "L", "XL", "XXL"].map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Color<input value={color} onChange={(event) => setColor(event.target.value)} /></label>
       <label>Fecha prometida<input type="date" value={promisedDeliveryDate} onChange={(event) => setPromisedDeliveryDate(event.target.value)} /></label>
       <p className="muted">Sugerida por el producto: {leadTimeDays} días. Puedes cambiarla.</p>
-      <p className="price">Precio configurable: {fmt(price)}</p>{error && <p className="error">{error}</p>}<button disabled={!customerId || !productId}>Crear pedido</button>
+      <p className="price">Precio configurable: {fmt(price)}</p>{error && <p className="error">{error}</p>}<button disabled={!customerId || !productId || !size}>Crear pedido</button>
     </form>
   </section>;
 }
