@@ -13,7 +13,7 @@ Contexto: miniERP es el ERP de Samiiwara. Producción está sana en b6b51b0 (no 
 
 Repo: gumorenos/miniERP
 Rama QA: qa/miniERP-conversation-multiturn
-SHA exacto candidato: 65dc38827fed4c30b52c7c194abbba023d27ac92
+SHA exacto candidato: eb455839c42ef0b6e411edfc4f356dae3fe00b1d
 Producción: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
@@ -31,4 +31,4 @@ Respuesta breve: PASS/FAIL, SHA, QA, migraciones, multi-turno, deploy sí/no, sm
 
 ## Criterio de identificación
 
-El SHA que debe probarse es `65dc38827fed4c30b52c7c194abbba023d27ac92`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.
+El SHA que debe probarse es `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.

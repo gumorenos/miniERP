@@ -20,7 +20,7 @@
 ## Candidato actual
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `65dc38827fed4c30b52c7c194abbba023d27ac92`.
+- SHA funcional exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
 - Estado: publicado y validado localmente; pendiente de QA remoto y eventual deploy.
 
 Incluye:

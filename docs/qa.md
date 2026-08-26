@@ -28,7 +28,7 @@ El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stoc
 ## Candidato pendiente
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA exacto: `65dc38827fed4c30b52c7c194abbba023d27ac92`.
+- SHA exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
 - Estado: QA local PASS; pendiente de QA remoto y eventual deploy.
 
 Validación local actual:
