@@ -21,8 +21,8 @@
 ## Candidato actual
 
 - Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
-- Estado: QA remoto PASS y desplegado en producción.
+- SHA funcional exacto: `f0a01b53f427da5709ea55989a82fdec079bb791`.
+- Estado: publicado; QA remoto y eventual deploy pendientes.
 
 Incluye:
 
@@ -35,6 +35,7 @@ Incluye:
 - Webhook Telegram directo con `conversationKey = chat_id:user_id`.
 - UI interna “Capturar por chat” con seguimiento multi-turno.
 - La talla no aparece preseleccionada; confirmar queda bloqueado mientras falten datos.
+- `TELEGRAM_ALLOWED_USER_IDS` se transmite explícitamente al contenedor productivo.
 
 ## Validación
 
@@ -43,15 +44,17 @@ Incluye:
 - Vitest: PASS, 55/55 pruebas.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
-- QA remoto/OpenClaw: PASS; Telegram simulado 19/19, health y smoke autenticado local/público PASS.
+- QA remoto/OpenClaw de la base desplegada: PASS; Telegram simulado 19/19, health y smoke autenticado local/público PASS.
+- Nuevo cableado de `TELEGRAM_ALLOWED_USER_IDS`: QA local PASS; Docker y QA remoto quedan pendientes para el candidato actual.
 
 ## Próximo orden de trabajo
 
-1. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados; registrar el webhook directo y probar el flujo completo.
-2. Observar el uso real y ajustar parser/preguntas con evidencia.
-3. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
-4. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
-5. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
+1. Ejecutar QA aislado del SHA exacto y, si todos los gates pasan, desplegarlo.
+2. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados; registrar el webhook directo y probar el flujo completo.
+3. Observar el uso real y ajustar parser/preguntas con evidencia.
+4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
+5. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
+6. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
 
 ## Riesgos heredados para vigilar
 
