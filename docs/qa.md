@@ -39,6 +39,12 @@ Validación local actual:
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
+## Candidato pendiente de QA/deploy
+
+- SHA exacto: `f0a01b53f427da5709ea55989a82fdec079bb791`.
+- Cambio: el contenedor productivo recibe `TELEGRAM_ALLOWED_USER_IDS` desde `.env.production`.
+- Producción permanece en `eb455839c42ef0b6e411edfc4f356dae3fe00b1d` hasta superar todos los gates.
+
 ## Gates completados del candidato
 
 - [x] Verificar existencia del SHA y checkout detached exacto; sin fallback.
