@@ -64,7 +64,7 @@ Para generar un secreto localmente:
 
 1. Crear el bot y obtener el token sin registrarlo en el repositorio.
 2. Elegir el chat autorizado y obtener su `chat_id`.
-3. Configurar las cinco variables en el entorno privado del VPS.
+3. Configurar las seis variables en el entorno privado del VPS.
 4. Registrar el webhook HTTPS en Telegram.
 5. Ejecutar QA aislado con PostgreSQL, incluyendo idempotencia, botones y callbacks.
 6. Desplegar solo el commit exacto aprobado por QA y hacer smoke test.
