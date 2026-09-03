@@ -114,4 +114,44 @@ describe("capture parser", () => {
     expect(result.payload.productId).toBe("product-1");
     expect(result.payload.size).toBe("M");
   });
+
+  it("marks an unknown customer for explicit creation and suggests similar products", () => {
+    const result = parseCaptureMessage(
+      "Ana quiere Vestido Margaritta azul talla M, precio 250",
+      catalog,
+      new Date(2026, 7, 19, 12)
+    );
+
+    expect(result.payload.customerName).toBe("Ana");
+    expect(result.payload.customerResolution).toBe("PENDING_CREATE");
+    expect(result.payload.productId).toBeUndefined();
+    expect(result.payload.productCandidates).toEqual([{ id: "product-1", name: "Vestido Margarita" }]);
+    expect(result.missingFields).toEqual(["customer", "product"]);
+  });
+
+  it("marks a product without similar names for explicit creation", () => {
+    const result = parseCaptureMessage(
+      "Ana quiere Prenda Sol azul talla M, precio 250",
+      catalog,
+      new Date(2026, 7, 19, 12)
+    );
+
+    expect(result.payload.productName).toBe("Sol");
+    expect(result.payload.productResolution).toBe("PENDING_CREATE");
+    expect(result.payload.productCandidates).toBeUndefined();
+    expect(result.missingFields).toEqual(["customer", "product"]);
+  });
+
+  it("uses the pending field to parse standalone follow-up answers", () => {
+    const customer = parseCaptureMessage("Rosa Huamán", catalog, new Date(), "NEW_ORDER", { completionFields: ["customer"] });
+    const product = parseCaptureMessage("producto Sol Andino", catalog, new Date(), "NEW_ORDER", { completionFields: ["product"] });
+    const price = parseCaptureMessage("250 soles", catalog, new Date(), "NEW_ORDER", { completionFields: ["productPrice"] });
+    const customerOnly = parseCaptureMessage("Ana", catalog, new Date(), "NEW_ORDER", { completionFields: ["customer", "product"] });
+
+    expect(customer.payload.customerName).toBe("Rosa Huamán");
+    expect(product.payload.productName).toBe("Sol Andino");
+    expect(price.payload.agreedTotalPrice).toBe(250);
+    expect(customerOnly.payload.customerName).toBe("Ana");
+    expect(customerOnly.payload.productName).toBeUndefined();
+  });
 });
