@@ -1,6 +1,6 @@
 # Continuidad — miniERP / Samiiwara
 
-Última actualización: 2026-08-25
+Última actualización: 2026-09-03
 
 ## Reglas de trabajo
 
@@ -13,16 +13,16 @@
 ## Estado productivo
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`
-- Último resultado: PASS en QA aislado, 55/55 tests, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado 19/19, Docker, backup, health y smoke autenticado HTTPS.
-- Backup previo validado: `/home/ubuntu/apps/minierp-samiiwara/backups/minierp-prod-pre-eb455839-20260825T2121-0500.dump`.
-- Producción quedó desplegada exactamente en el candidato; no fue necesario rollback.
+- SHA desplegado: `f0a01b53f427da5709ea55989a82fdec079bb791`
+- Último resultado: PASS en QA/deploy, 55/55 tests, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
+- Backup previo validado: `/home/ubuntu/apps/minierp-samiiwara/backups/minierp-prod-pre-f0a01b53-20260901T234510-0500.dump`.
+- Producción quedó desplegada exactamente en `f0a01b53…`; no fue necesario rollback.
 
 ## Candidato actual
 
-- Rama: `qa/miniERP-conversation-multiturn`.
-- SHA funcional exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
-- Estado: QA remoto PASS y desplegado en producción.
+- Rama: `qa/miniERP-telegram-entity-resolution`.
+- SHA funcional exacto remoto: `65944069ca7b9a9a6fda8cd10342f08073d611c1`.
+- Estado: candidato publicado; QA remoto/deploy pendientes. OpenClaw debe probar exactamente este SHA, no el HEAD posterior de la rama.
 
 Incluye:
 
@@ -35,23 +35,27 @@ Incluye:
 - Webhook Telegram directo con `conversationKey = chat_id:user_id`.
 - UI interna “Capturar por chat” con seguimiento multi-turno.
 - La talla no aparece preseleccionada; confirmar queda bloqueado mientras falten datos.
+- Cliente desconocido: botón explícito para crear clienta, sin creación silenciosa.
+- Producto desconocido: hasta tres productos similares o botón para crear uno nuevo; la selección/creación conserva el mismo borrador.
+- Crear producto requiere precio explícito, lo registra inicialmente como `OTHER` y no confirma la orden automáticamente.
 
 ## Validación
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 55/55 pruebas.
+- Vitest: PASS, 61/61 pruebas.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
-- QA remoto/OpenClaw: PASS; Telegram simulado 19/19, health y smoke autenticado local/público PASS.
+- QA remoto/OpenClaw del candidato: pendiente.
 
 ## Próximo orden de trabajo
 
-1. Configurar Telegram real cuando estén disponibles bot, chat y usuario autorizados; registrar el webhook directo y probar el flujo completo.
-2. Observar el uso real y ajustar parser/preguntas con evidencia.
-3. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
-4. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
-5. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
+1. Ejecutar QA y deploy condicionado del SHA `65944069…` mediante OpenClaw.
+2. Probar manualmente con el bot autorizado los botones de cliente/producto y el flujo multi-turno, sin confirmar operaciones reales.
+3. Observar el uso real y ajustar parser/preguntas con evidencia.
+4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
+5. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
+6. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
 
 ## Riesgos heredados para vigilar
 
