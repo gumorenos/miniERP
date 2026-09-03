@@ -24,8 +24,10 @@ El adaptador responde al webhook y envía el contenido visible a la usuaria medi
 
 - `/start` y `/help` muestran instrucciones.
 - Un mensaje de texto crea un borrador idempotente por `chat_id:message_id`.
-- Si el borrador es confirmable, Telegram recibe botones `✅ Confirmar` y `🗑 Descartar`.
-- Los callbacks usan datos internos `capture:confirm:<draftId>` o `capture:reject:<draftId>`.
+- Si falta la clienta, Telegram muestra `✅ Crear clienta` y nunca la crea automáticamente.
+- Si falta el producto, Telegram muestra hasta tres productos similares y `➕ Crear producto`; si no hay similares, muestra directamente la creación.
+- Las acciones de entidad actualizan el mismo borrador; después, si está completo, aparecen `✅ Confirmar` y `🗑 Descartar`.
+- Los callbacks usan datos compactos internos para confirmar, rechazar, crear clienta, crear producto o seleccionar producto.
 - Confirmar o descartar llama al núcleo de captura; el adaptador no ejecuta SQL de negocio por su cuenta.
 
 Las actualizaciones que no sean mensajes de texto o callbacks reconocidos se ignoran con respuesta exitosa para evitar reintentos innecesarios de Telegram.
@@ -60,13 +62,12 @@ Para generar un secreto localmente:
 - El QA debe usar chats y datos sintéticos autorizados; nunca se debe probar contra la base productiva.
 - OpenClaw no debe instalarse como dependencia ni configurarse como puente de mensajes.
 
-## Activación pendiente
+## Estado y validación pendiente
 
-1. Crear el bot y obtener el token sin registrarlo en el repositorio.
-2. Elegir el chat autorizado y obtener su `chat_id`.
-3. Configurar las seis variables en el entorno privado del VPS.
-4. Registrar el webhook HTTPS en Telegram.
-5. Ejecutar QA aislado con PostgreSQL, incluyendo idempotencia, botones y callbacks.
-6. Desplegar solo el commit exacto aprobado por QA y hacer smoke test.
+El webhook productivo y las seis variables ya están configurados en el VPS. El candidato de resolución de entidades aún requiere QA/deploy condicionado y luego prueba manual con el bot autorizado. Usar datos sintéticos y no confirmar operaciones reales.
+
+1. Ejecutar QA aislado con PostgreSQL, incluyendo idempotencia, botones y callbacks.
+2. Desplegar solo el commit exacto aprobado por QA y hacer smoke test.
+3. Probar cliente nuevo, producto similar, producto nuevo, respuesta multi-turno y replay.
 
 El endpoint legacy `POST /api/integrations/telegram/capture` y las variables `TELEGRAM_CAPTURE_*` se conservan solo como referencia histórica y no deben configurarse.
