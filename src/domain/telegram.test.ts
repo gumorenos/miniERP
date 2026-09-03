@@ -3,6 +3,7 @@ import {
   isTelegramChatAllowed,
   parseTelegramAllowedChatIds,
   telegramDraftCanConfirm,
+  telegramDraftButtons,
   telegramDraftText,
   telegramSourceMessageId
 } from "./telegram";
@@ -71,6 +72,25 @@ describe("Telegram capture helpers", () => {
     expect(text).toContain("fecha de entrega");
     expect(text).toContain("DD/MM/AAAA");
     expect(text).not.toContain("¿Confirmas");
+  });
+
+  it("offers entity-resolution buttons before confirmation", () => {
+    const unresolved = {
+      ...baseDraft,
+      payload: {
+        ...baseDraft.payload,
+        customerName: "Ana",
+        productName: "Vestido Margaritta",
+        productCandidates: [{ id: "product-1", name: "Vestido Margarita" }]
+      },
+      missingFields: ["customer", "product"]
+    };
+    const buttons = telegramDraftButtons(unresolved);
+    expect(buttons.map((button) => button.action)).toEqual(["CREATE_CUSTOMER", "SELECT_PRODUCT", "CREATE_PRODUCT"]);
+    expect(buttons[1]?.optionIndex).toBe(0);
+    expect(telegramDraftText(unresolved)).toContain("productos parecidos");
+    expect(telegramDraftText(unresolved)).not.toContain("¿Confirmas");
+    expect(telegramDraftButtons({ ...unresolved, ambiguousFields: ["product"] }).map((button) => button.action)).toEqual(["CREATE_CUSTOMER"]);
   });
 
   it("offers confirmation for complete operational drafts", () => {
