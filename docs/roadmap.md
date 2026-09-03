@@ -1,6 +1,6 @@
 # Samiiwara miniERP — Roadmap pendiente
 
-Última actualización: 2026-08-25. Documentación canónica: `continuidad.md`, `qa.md`, `openclaw-qa.md` y este archivo.
+Última actualización: 2026-09-03. Documentación canónica: `continuidad.md`, `qa.md`, `openclaw-qa.md` y este archivo.
 
 Este documento conserva explícitamente decisiones postergadas. Un ítem pendiente no debe interpretarse como descartado.
 
@@ -16,10 +16,11 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 ## Operación del taller
 
 - Automatización de WhatsApp mediante proveedor/API. La etapa actual solo genera enlaces y mensajes para revisión humana antes de enviar.
-- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`, con QA aislado, E2E, concurrencia/idempotencia, migraciones 0016, Docker, health y smoke autenticado PASS. Telegram real aún requiere secretos privados, webhook y prueba con el bot autorizado. OpenClaw queda fuera del runtime.
+- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `f0a01b53f427da5709ea55989a82fdec079bb791`, con QA aislado, E2E, concurrencia/idempotencia, migraciones 0016, Docker, health y smoke autenticado PASS. El webhook está activo; queda validar manualmente la nueva resolución de entidades. OpenClaw queda fuera del runtime.
 - **Seguimiento conversacional UX — implementado localmente.** Los borradores incompletos o ambiguos muestran preguntas agrupadas y la confirmación sigue bloqueada hasta resolverlas.
-- **Captura multi-turno — publicada y desplegada.** `eb455839c42ef0b6e411edfc4f356dae3fe00b1d` añade captura por conversación en Telegram y en la UI interna, junto con la migración 0016. Asocia mensajes, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados. Falta probar el webhook con Telegram real.
-- **Hardening post-code-review — ya validado y desplegado como parte de `eb455…`.** Mantener regresión de carreras de estado/stock y confirmaciones idempotentes en cada candidato posterior.
+- **Captura multi-turno — publicada y desplegada.** `f0a01b53f427da5709ea55989a82fdec079bb791` añade captura por conversación en Telegram y en la UI interna, junto con la migración 0016. Asocia mensajes, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados.
+- **Resolución de entidades Telegram — candidato publicado, QA/deploy pendientes.** `65944069ca7b9a9a6fda8cd10342f08073d611c1` añade botones para crear clientas, seleccionar productos similares o crear productos nuevos de forma explícita, conservando el mismo borrador y la confirmación humana.
+- **Hardening post-code-review — ya validado y desplegado como parte de `f0a01b53…`.** Mantener regresión de carreras de estado/stock y confirmaciones idempotentes en cada candidato posterior.
 - Intenciones iniciales de captura: nuevo pedido, nuevo cliente, nueva compra, nuevo gasto y ajuste de stock. La IA propone datos; nunca crea silenciosamente.
 - Audio e imágenes quedan después de estabilizar la captura textual y la confirmación.
 - Fotos/adjuntos por producto y pedido: referencia de la clienta, bordado enviado/recibido y prenda terminada. Evaluar almacenamiento R2 u objeto equivalente antes de implementarlo.
