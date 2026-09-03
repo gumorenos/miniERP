@@ -3,9 +3,12 @@ import { formatMoney } from "./money";
 
 export type TelegramCaptureButton = {
   text: string;
-  action: "CONFIRM" | "REJECT";
+  action: TelegramCaptureAction;
   draftId: string;
+  optionIndex?: number;
 };
+
+export type TelegramCaptureAction = "CONFIRM" | "REJECT" | "CREATE_CUSTOMER" | "CREATE_PRODUCT" | "SELECT_PRODUCT";
 
 export type TelegramDraftSummary = {
   id: string;
@@ -58,6 +61,34 @@ export function telegramDraftCanConfirm(draft: TelegramDraftSummary) {
     && draft.ambiguousFields.length === 0;
 }
 
+export function telegramDraftButtons(draft: TelegramDraftSummary): TelegramCaptureButton[] {
+  if (draft.status !== "PENDING") return [];
+  const buttons: TelegramCaptureButton[] = [];
+  if (draft.intent === "NEW_ORDER") {
+    if (!draft.payload.customerId && draft.payload.customerName && draft.missingFields.includes("customer") && !draft.ambiguousFields.includes("customer")) {
+      buttons.push({ text: "✅ Crear clienta", action: "CREATE_CUSTOMER", draftId: draft.id });
+    }
+    if (!draft.payload.productId && draft.payload.productName && draft.missingFields.includes("product") && !draft.ambiguousFields.includes("product")) {
+      const candidates = draft.payload.productCandidates ?? [];
+      candidates.forEach((candidate, optionIndex) => {
+        buttons.push({ text: "Usar " + shorten(candidate.name, 30), action: "SELECT_PRODUCT", draftId: draft.id, optionIndex });
+      });
+      buttons.push({
+        text: candidates.length ? "➕ Crear nuevo" : "➕ Crear producto",
+        action: "CREATE_PRODUCT",
+        draftId: draft.id
+      });
+    }
+  }
+  if (telegramDraftCanConfirm(draft)) {
+    buttons.push(
+      { text: "✅ Confirmar", action: "CONFIRM", draftId: draft.id },
+      { text: "🗑 Descartar", action: "REJECT", draftId: draft.id }
+    );
+  }
+  return buttons;
+}
+
 export function telegramDraftText(draft: TelegramDraftSummary) {
   const payload = draft.payload;
   const lines = [
@@ -78,6 +109,17 @@ export function telegramDraftText(draft: TelegramDraftSummary) {
       "Adelanto: " + money(payload.advanceAmount),
       "Entrega: " + (payload.promisedDeliveryDate ?? "no indicada")
     );
+    if (!payload.customerId && payload.customerName && draft.missingFields.includes("customer") && !draft.ambiguousFields.includes("customer")) {
+      lines.push("", `⚠️ No encontré a la clienta «${shorten(payload.customerName, 80)}».`, "Si es nueva, pulsa «Crear clienta»." );
+    }
+    if (!payload.productId && payload.productName && draft.missingFields.includes("product") && !draft.ambiguousFields.includes("product")) {
+      const candidates = payload.productCandidates ?? [];
+      if (candidates.length) {
+        lines.push("", `🔎 No encontré coincidencia exacta para «${shorten(payload.productName, 80)}».`, "Encontré productos parecidos; elige un botón o crea uno nuevo:");
+      } else {
+        lines.push("", `⚠️ No encontré el producto «${shorten(payload.productName, 80)}».`, "Si es nuevo, pulsa «Crear producto»." );
+      }
+    }
   } else if (draft.intent === "NEW_CUSTOMER") {
     lines.push("", "Nombre: " + (payload.name ?? "no detectado"), "Teléfono: " + (payload.phone ?? "no detectado"));
   } else if (draft.intent === "NEW_PURCHASE") {
@@ -130,8 +172,9 @@ export function telegramHelpText() {
     "Captura Samiiwara",
     "",
     "Envíame un pedido, compra, gasto o ajuste escrito de forma natural.",
-    "Primero te mostraré un borrador; solo se guarda cuando confirmes.",
+    "Primero te mostraré un borrador; el pedido solo se guarda cuando confirmes.",
+    "Las clientas y productos nuevos solo se crean cuando pulses su botón.",
     "",
-    "También puedes usar los botones Confirmar y Descartar."
+    "También puedes usar los botones para elegir, crear, confirmar o descartar."
   ].join("\n");
 }
