@@ -93,6 +93,8 @@ describe("Telegram webhook parsing and configuration", () => {
         message: { message_id: 8, chat: { id: -100123 } }
       }
     })).toEqual({ kind: "callback", chatId: "-100123", userId: "9001", callbackId: "callback-1", action: "CONFIRM", draftId: draft.id });
+    expect(parseTelegramCallbackData(telegramCallbackData("CREATE_CUSTOMER", draft.id) ?? "")).toEqual({ action: "CREATE_CUSTOMER", draftId: draft.id });
+    expect(parseTelegramCallbackData(telegramCallbackData("SELECT_PRODUCT", draft.id, 2) ?? "")).toEqual({ action: "SELECT_PRODUCT", draftId: draft.id, optionIndex: 2 });
     expect(parseTelegramCallbackData("capture:confirm:not-a-uuid")).toBeNull();
   });
 
@@ -145,6 +147,33 @@ describe("Telegram webhook flow", () => {
     expect(await response.json()).toEqual({ ok: true, type: "DRAFT_UPDATED" });
   });
 
+  it("sends entity-resolution buttons when an order is incomplete", async () => {
+    const sent: Array<{ text: string; buttons?: unknown[] }> = [];
+    const unresolvedDraft = {
+      ...draft,
+      payload: {
+        ...draft.payload,
+        customerName: "Ana",
+        productName: "Vestido Margaritta",
+        productCandidates: [{ id: "44444444-4444-4444-8444-444444444444", name: "Vestido Margarita" }]
+      },
+      missingFields: ["customer", "product"]
+    };
+    const response = await handleTelegramWebhook(webhookRequest({
+      update_id: 32,
+      message: { message_id: 32, text: "Ana quiere Vestido Margaritta" }
+    }), env, {
+      resolveUser: async () => user,
+      createDraft: async () => new Response(JSON.stringify({ duplicate: false, draft: unresolvedDraft }), { status: 201 }),
+      sendMessage: async (_config, _chatId, text, buttons) => { sent.push({ text, buttons }); }
+    });
+
+    expect(response.status).toBe(200);
+    expect(sent[0]?.buttons).toHaveLength(3);
+    expect((sent[0]?.buttons as Array<{ action: string }>).map((button) => button.action)).toEqual(["CREATE_CUSTOMER", "SELECT_PRODUCT", "CREATE_PRODUCT"]);
+    expect(sent[0]?.text).toContain("No encontré");
+  });
+
   it("confirms a callback and acknowledges Telegram without exposing internals", async () => {
     const sent: string[] = [];
     const acknowledged: string[] = [];
@@ -165,6 +194,31 @@ describe("Telegram webhook flow", () => {
     expect(response.status).toBe(200);
     expect(acknowledged).toEqual(["callback-2"]);
     expect(sent).toEqual(["✅ Pedido 0007 creado."]);
+  });
+
+  it("resolves a customer callback and returns the confirmation buttons", async () => {
+    const sent: Array<{ text: string; buttons?: unknown[] }> = [];
+    const response = await handleTelegramWebhook(webhookRequest({
+      update_id: 41,
+      callback_query: {
+        id: "callback-entity",
+        data: telegramCallbackData("CREATE_CUSTOMER", draft.id),
+        message: { message_id: 41 }
+      }
+    }), env, {
+      resolveUser: async () => user,
+      resolveDraftEntity: async (_user, draftId, action) => {
+        expect(draftId).toBe(draft.id);
+        expect(action).toEqual({ type: "CREATE_CUSTOMER" });
+        return new Response(JSON.stringify({ draft }), { status: 200 });
+      },
+      answerCallback: async () => undefined,
+      sendMessage: async (_config, _chatId, text, buttons) => { sent.push({ text, buttons }); }
+    });
+
+    expect(response.status).toBe(200);
+    expect(sent[0]?.text).toContain("Clienta registrada");
+    expect(sent[0]?.buttons).toHaveLength(2);
   });
 
   it("rejects an invalid webhook secret before processing the update", async () => {
