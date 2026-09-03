@@ -13,12 +13,24 @@ export type CaptureCatalog = {
   suppliers?: Array<{ id: string; name: string }>;
 };
 
+export type CaptureProductCandidate = {
+  id: string;
+  name: string;
+};
+
+export type CaptureConversationContext = {
+  completionFields?: string[];
+};
+
 export type CapturePayload = {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
   productId?: string;
   productName?: string;
+  productCandidates?: CaptureProductCandidate[];
+  customerResolution?: "PENDING_CREATE" | "RESOLVED";
+  productResolution?: "PENDING_CREATE" | "RESOLVED";
   materialId?: string;
   materialName?: string;
   supplierId?: string;
@@ -60,6 +72,8 @@ const colorNames = [
 ] as const;
 
 const stopWords = /\s+(?:color|talla|talle|tamaño|por|dejo|dejó|adelanto|anticipo|abono|para|entrega|con|y\s+lo|$)/i;
+const productAttributeStopWords = new RegExp(`\\s+(?:${colorNames.map(([needle]) => needle).join("|")})\\b`, "i");
+const productContextStopWords = /\s+(?:talla|talle|tamaño|color|por|precio|total|cuesta|dejo|dejó|adelanto|anticipo|abono|para|entrega|con|y\s+lo)\b/i;
 
 function withoutAccents(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -71,6 +85,10 @@ export function normalizeCaptureText(value: string) {
 
 function cleanName(value: string) {
   return value.replace(/^[\s:,-]+|[\s:,-]+$/g, "").replace(/\s+/g, " ").trim();
+}
+
+function cleanProductName(value: string) {
+  return cleanName(value.split(productContextStopWords)[0].split(productAttributeStopWords)[0]);
 }
 
 function parseMoney(value: string) {
@@ -147,25 +165,103 @@ function operationDescription(text: string, intent: CaptureIntent) {
 
 function findKnownMatch<T extends { id: string; name: string }>(text: string, candidates: T[] | undefined) {
   const normalizedText = normalizeCaptureText(text);
-  const matches = (candidates ?? []).filter((candidate) => normalizedText.includes(normalizeCaptureText(candidate.name)));
+  const matches = (candidates ?? []).filter((candidate) => {
+    const normalizedName = normalizeCaptureText(candidate.name);
+    return normalizedText.includes(normalizedName)
+      || (normalizedText.length >= 3 && normalizedName.includes(normalizedText));
+  });
   if (!matches.length) return { match: undefined, ambiguous: false };
   const longest = Math.max(...matches.map((candidate) => normalizeCaptureText(candidate.name).length));
   const top = matches.filter((candidate) => normalizeCaptureText(candidate.name).length === longest);
   return { match: top.length === 1 ? top[0] : undefined, ambiguous: top.length > 1 };
 }
 
+function editDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      current[rightIndex] = Math.min(
+        (current[rightIndex - 1] ?? 0) + 1,
+        (previous[rightIndex] ?? 0) + 1,
+        (previous[rightIndex - 1] ?? 0) + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+      );
+    }
+    for (let rightIndex = 0; rightIndex <= right.length; rightIndex += 1) previous[rightIndex] = current[rightIndex] ?? 0;
+  }
+  return previous[right.length] ?? Math.max(left.length, right.length);
+}
+
+function productSimilarity(query: string, candidate: string) {
+  const normalizedQuery = normalizeCaptureText(query);
+  const normalizedCandidate = normalizeCaptureText(candidate);
+  if (normalizedQuery.length < 3 || normalizedCandidate.length < 3) return 0;
+  if (normalizedQuery === normalizedCandidate) return 1;
+  if (normalizedCandidate.includes(normalizedQuery) || normalizedQuery.includes(normalizedCandidate)) return 0.95;
+
+  const queryTokens = normalizedQuery.split(/[^a-z0-9]+/).filter((token) => token.length >= 3);
+  const candidateTokens = normalizedCandidate.split(/[^a-z0-9]+/).filter((token) => token.length >= 3);
+  if (!queryTokens.length || !candidateTokens.length) return 0;
+  const tokenScores = queryTokens.map((queryToken) => Math.max(...candidateTokens.map((candidateToken) => {
+    const distance = editDistance(queryToken, candidateToken);
+    return 1 - distance / Math.max(queryToken.length, candidateToken.length);
+  })));
+  const tokenCoverage = tokenScores.filter((score) => score >= 0.72).length / queryTokens.length;
+  const characterSimilarity = 1 - editDistance(normalizedQuery, normalizedCandidate) / Math.max(normalizedQuery.length, normalizedCandidate.length);
+  return tokenCoverage * 0.65 + characterSimilarity * 0.35;
+}
+
+export function findSimilarProductCandidates(name: string | undefined, candidates: CaptureCatalog["products"] = []) {
+  if (!name?.trim()) return [];
+  return candidates
+    .map((candidate) => ({ candidate, score: productSimilarity(name, candidate.name) }))
+    .filter(({ score }) => score >= 0.58)
+    .sort((left, right) => right.score - left.score || left.candidate.name.localeCompare(right.candidate.name, "es"))
+    .slice(0, 3)
+    .map(({ candidate }) => ({ id: candidate.id, name: candidate.name }));
+}
+
 function extractCustomerName(text: string) {
   const explicit = text.match(/(?:cliente|clienta)\s*(?:es|se llama|:)?\s*([A-Za-zÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑ' -]{1,70})/i);
-  if (explicit?.[1]) return cleanName(explicit[1].split(stopWords)[0]);
+  if (explicit?.[1]) return cleanName(explicit[1].split(stopWords)[0].split(/\s+(?:producto|prenda|modelo)\b/i)[0]);
   const beforeVerb = text.match(/^(?:pedido\s+(?:para\s+)?)?(.+?)\s+(?:quiere|pide|encarga|necesita)\b/i);
   if (beforeVerb?.[1] && !/^yo|quiero$/i.test(cleanName(beforeVerb[1]))) return cleanName(beforeVerb[1].replace(/^para\s+/i, ""));
   return undefined;
 }
 
 function extractProductName(text: string) {
+  const explicit = text.match(/(?:producto|prenda|modelo)\s*(?:es|:)?\s*([^,.;]+?)(?=\s+(?:talla|talle|tamaño|color|por|precio|total|cuesta|dejo|dejó|adelanto|anticipo|abono|para|entrega)\b|\s*[,.;]|$)/i);
+  if (explicit?.[1]) return cleanProductName(explicit[1]);
   const match = text.match(/(?:quiere|pide|encarga|necesita|quiero|comprar)\s+(?:un[ao]?|el|la)?\s*(.+)/i);
   if (!match?.[1]) return undefined;
-  return cleanName(match[1].split(stopWords)[0]);
+  return cleanProductName(match[1]);
+}
+
+function standaloneCustomerName(text: string) {
+  const normalized = normalizeCaptureText(text);
+  if (/^(?:s[ií]|no|ninguno|crear|nuevo|ok|vale)\b/i.test(text.trim())) return undefined;
+  if (/^(?:producto|prenda|modelo|talla|talle|tamaño|color|precio|total)\b/i.test(text.trim())) return undefined;
+  if (/^(?:xxl|xl|s|m|l|yape|plin|efectivo|cash|transferencia|banco)$/.test(normalized) || colorNames.some(([needle]) => needle === normalized)) return undefined;
+  const phone = findPhone(text);
+  const candidate = text.replace(phone ?? "", "").replace(/^(?:cliente|clienta)\s*(?:es|se llama|:)?\s*/i, "").trim();
+  if (!candidate || /\d/.test(candidate)) return undefined;
+  return cleanName(candidate);
+}
+
+function looksLikeProductText(text: string) {
+  return /\b(?:producto|prenda|modelo|vestido|falda|casaca|polo|polera|camisa|blusa|chaqueta|pantal[oó]n|short)\b/i.test(text);
+}
+
+function standaloneProductName(text: string) {
+  const normalized = normalizeCaptureText(text);
+  if (/^(?:xxl|xl|s|m|l|yape|plin|efectivo|cash|transferencia|banco)$/.test(normalized) || colorNames.some(([needle]) => needle === normalized)) return undefined;
+  const candidate = text
+    .replace(/\b(?:talla|talle|tamaño)\s*(?:XXL|XL|S|M|L)\b.*$/i, "")
+    .replace(/\b(?:color|por|precio|total|cuesta|dejo|dejó|adelanto|anticipo|abono|para|entrega)\b.*$/i, "")
+    .replace(/^(?:producto|prenda|modelo)\s*(?:es|:)?\s*/i, "")
+    .trim();
+  if (!candidate || /^(?:s[ií]|no|ninguno|crear|nuevo|ok|vale)\b/i.test(candidate) || /^\d/.test(candidate)) return undefined;
+  return cleanProductName(candidate);
 }
 
 function findSize(text: string): Size | undefined {
@@ -226,21 +322,44 @@ function classify(text: string): CaptureIntent {
   return "UNKNOWN";
 }
 
-function parseOrder(text: string, catalog: CaptureCatalog | undefined, now: Date): CaptureParseResult {
-  const customerMatch = findKnownMatch(text, catalog?.customers);
-  const productMatch = findKnownMatch(text, catalog?.products);
-  const customerName = customerMatch.match?.name ?? extractCustomerName(text);
-  const productName = productMatch.match?.name ?? extractProductName(text);
+function parseOrder(text: string, catalog: CaptureCatalog | undefined, now: Date, context?: CaptureConversationContext): CaptureParseResult {
+  const extractedCustomerName = extractCustomerName(text)
+    ?? (context?.completionFields?.includes("customer") ? standaloneCustomerName(text) : undefined);
+  const extractedProductName = extractProductName(text)
+    ?? (context?.completionFields?.includes("product")
+      && (!context.completionFields.includes("customer") || looksLikeProductText(text))
+      ? standaloneProductName(text)
+      : undefined);
+  const wholeCustomerMatch = findKnownMatch(text, catalog?.customers);
+  const customerMatch = wholeCustomerMatch.match || wholeCustomerMatch.ambiguous
+    ? wholeCustomerMatch
+    : findKnownMatch(extractedCustomerName ?? "", catalog?.customers);
+  const wholeProductMatch = findKnownMatch(text, catalog?.products);
+  const productMatch = wholeProductMatch.match || wholeProductMatch.ambiguous
+    ? wholeProductMatch
+    : findKnownMatch(extractedProductName ?? "", catalog?.products);
+  const customerName = customerMatch.match?.name ?? extractedCustomerName;
+  const productName = productMatch.match?.name ?? extractedProductName;
   const promised = findDeliveryDate(text, now);
   const advanceAmount = findAmount(text, /(?:dejo|dejó|adelanto|anticipo|abono|pago|pagó)\s*(?:de\s*)?(?:s\/\.?\s*)?(\d+(?:[.,]\d{1,2})?)/i);
-  const agreedTotalPrice = findAmount(text, /(?:precio|total|cuesta)\s*(?:de\s*)?(?:s\/\.?\s*)?(\d+(?:[.,]\d{1,2})?)/i);
+  const agreedTotalPrice = findAmount(text, /(?:precio|total|cuesta)\s*(?:de\s*)?(?:s\/\.?\s*)?(\d+(?:[.,]\d{1,2})?)/i)
+    ?? (context?.completionFields?.includes("productPrice")
+      ? findAmount(text, /(?:s\/\.?\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:soles?|s\/\.?|$)/i)
+      : undefined);
   const size = findSize(text);
   const color = findColor(text);
+  const productCandidates = !productMatch.match && !productMatch.ambiguous
+    ? findSimilarProductCandidates(productName, catalog?.products)
+    : [];
   const payload: CapturePayload = {
     customerId: customerMatch.match?.id,
     customerName,
+    customerPhone: findPhone(text),
     productId: productMatch.match?.id,
     productName,
+    ...(productCandidates.length ? { productCandidates } : {}),
+    ...(!customerMatch.match && !customerMatch.ambiguous && customerName ? { customerResolution: "PENDING_CREATE" as const } : {}),
+    ...(!productMatch.match && !productMatch.ambiguous && productName && !productCandidates.length ? { productResolution: "PENDING_CREATE" as const } : {}),
     size,
     color,
     quantity: 1,
@@ -253,6 +372,7 @@ function parseOrder(text: string, catalog: CaptureCatalog | undefined, now: Date
   const missingFields = [
     !customerMatch.match ? "customer" : "",
     !productMatch.match ? "product" : "",
+    !productMatch.match && !productMatch.ambiguous && !productCandidates.length && agreedTotalPrice == null ? "productPrice" : "",
     !size ? "size" : "",
     !color ? "color" : ""
   ].filter(Boolean);
@@ -347,10 +467,10 @@ function parseOperational(text: string, intent: CaptureIntent, catalog: CaptureC
   };
 }
 
-export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now = new Date(), forcedIntent?: CaptureIntent): CaptureParseResult {
+export function parseCaptureMessage(text: string, catalog?: CaptureCatalog, now = new Date(), forcedIntent?: CaptureIntent, context?: CaptureConversationContext): CaptureParseResult {
   const cleanText = text.trim();
   const intent = forcedIntent ?? classify(cleanText);
-  if (intent === "NEW_ORDER") return parseOrder(cleanText, catalog, now);
+  if (intent === "NEW_ORDER") return parseOrder(cleanText, catalog, now, context);
 
   if (intent === "NEW_CUSTOMER") {
     const explicit = cleanText.match(/(?:cliente|clienta)\s*(?:es|se llama|:)?\s*([A-Za-zÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑ' -]{1,70})/i);
@@ -396,6 +516,7 @@ const captureFieldLabels: Record<string, string> = {
   intent: "tipo de registro",
   customer: "clienta",
   product: "producto o modelo",
+  productPrice: "precio del producto",
   size: "talla",
   color: "color",
   promisedDeliveryDate: "fecha de entrega",
@@ -422,6 +543,7 @@ function captureFieldQuestion(intent: CaptureIntent, field: string, ambiguous: b
 
   if (field === "customer") return "¿Para quién es el pedido? Indica el nombre de la clienta.";
   if (field === "product") return "¿Qué producto o modelo es? Indica su nombre.";
+  if (field === "productPrice") return "¿Cuál es el precio base del producto nuevo? Indica un monto mayor a cero.";
   if (field === "size") return "¿Qué talla necesita? Puede ser S, M, L, XL o XXL.";
   if (field === "color") return "¿Qué color llevará?";
   if (field === "promisedDeliveryDate") return "¿Para qué fecha se necesita? Escríbela como DD/MM/AAAA.";
