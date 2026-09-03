@@ -6,7 +6,7 @@ import {
   isTelegramUserAllowed,
   parseTelegramAllowedChatIds,
   parseTelegramAllowedUserIds,
-  telegramDraftCanConfirm,
+  telegramDraftButtons,
   telegramDraftText,
   telegramHelpText,
   telegramSourceMessageId,
@@ -16,7 +16,7 @@ import {
 import { db } from "../db/client";
 import { users } from "../db/schema";
 import type { AuthUser } from "./auth";
-import { confirmCaptureDraft, createCaptureDraft, rejectCaptureDraft } from "./capture";
+import { confirmCaptureDraft, createCaptureDraft, rejectCaptureDraft, resolveCaptureDraftEntity, type CaptureDraftEntityAction } from "./capture";
 
 export const telegramWebhookPath = "/api/integrations/telegram/webhook";
 
@@ -44,7 +44,7 @@ const telegramUpdateSchema = z.object({
   callback_query: telegramCallbackSchema.optional()
 }).passthrough();
 
-const callbackDataSchema = z.string().regex(/^capture:(confirm|reject):(.+)$/i);
+const callbackDataSchema = z.string().max(64).regex(/^(?:capture:(?:confirm|reject|cc|cp):[0-9a-f-]{36}|capture:ps:[0-9a-f-]{36}:[0-9]{1,2})$/i);
 const uuidSchema = z.string().uuid();
 
 type JsonRecord = Record<string, unknown>;
@@ -60,7 +60,7 @@ export type TelegramWebhookConfig = {
 
 export type TelegramWebhookEvent =
   | { kind: "message"; chatId: string; userId: string; messageId: string; text: string }
-  | { kind: "callback"; chatId: string; userId: string; callbackId: string; action: "CONFIRM" | "REJECT"; draftId: string }
+  | { kind: "callback"; chatId: string; userId: string; callbackId: string; action: "CONFIRM" | "REJECT" | "CREATE_CUSTOMER" | "CREATE_PRODUCT" | "SELECT_PRODUCT"; draftId: string; optionIndex?: number }
   | { kind: "unsupported"; chatId?: string };
 
 type SendMessage = (
@@ -76,6 +76,7 @@ export type TelegramWebhookDependencies = {
   createDraft?: typeof createCaptureDraft;
   confirmDraft?: typeof confirmCaptureDraft;
   rejectDraft?: typeof rejectCaptureDraft;
+  resolveDraftEntity?: typeof resolveCaptureDraftEntity;
   sendMessage?: SendMessage;
   answerCallback?: AnswerCallback;
 };
@@ -130,25 +131,55 @@ export function matchesTelegramWebhookSecret(provided: string, expected: string)
 export function parseTelegramCallbackData(value: string) {
   const match = callbackDataSchema.safeParse(value);
   if (!match.success) return null;
-  const [, action, draftId] = match.data.match(/^capture:(confirm|reject):(.+)$/i) ?? [];
-  if (!action || !draftId || !isUuid(draftId)) return null;
-  return {
-    action: action.toUpperCase() as "CONFIRM" | "REJECT",
-    draftId
-  };
+  const parts = match.data.split(":");
+  const code = parts[1]?.toLowerCase();
+  const draftId = parts[2];
+  if (!draftId || !isUuid(draftId)) return null;
+  if (code === "ps") {
+    const optionIndex = Number(parts[3]);
+    if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex > 9) return null;
+    return { action: "SELECT_PRODUCT" as const, draftId, optionIndex };
+  }
+  if (code === "confirm") return { action: "CONFIRM" as const, draftId };
+  if (code === "reject") return { action: "REJECT" as const, draftId };
+  if (code === "cc") return { action: "CREATE_CUSTOMER" as const, draftId };
+  if (code === "cp") return { action: "CREATE_PRODUCT" as const, draftId };
+  return null;
 }
 
-export function telegramCallbackData(action: "CONFIRM" | "REJECT", draftId: string) {
+export function telegramCallbackData(action: "CONFIRM" | "REJECT" | "CREATE_CUSTOMER" | "CREATE_PRODUCT" | "SELECT_PRODUCT", draftId: string, optionIndex?: number) {
   if (!isUuid(draftId)) return null;
-  return `capture:${action.toLowerCase()}:${draftId}`;
+  const code = {
+    CONFIRM: "confirm",
+    REJECT: "reject",
+    CREATE_CUSTOMER: "cc",
+    CREATE_PRODUCT: "cp",
+    SELECT_PRODUCT: "ps"
+  }[action];
+  if (action === "SELECT_PRODUCT" && (optionIndex == null || !Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex > 9)) return null;
+  const value = action === "SELECT_PRODUCT"
+    ? `capture:${code}:${draftId}:${optionIndex}`
+    : `capture:${code}:${draftId}`;
+  return value.length <= 64 ? value : null;
 }
 
 export function telegramInlineKeyboard(buttons: TelegramCaptureButton[]) {
-  const keyboard = buttons.flatMap((button) => {
-    const callbackData = telegramCallbackData(button.action, button.draftId);
-    return callbackData ? [{ text: button.text, callback_data: callbackData }] : [];
+  const entries = buttons.flatMap((button) => {
+    const callbackData = telegramCallbackData(button.action, button.draftId, button.optionIndex);
+    return callbackData ? [{ button, item: { text: button.text, callback_data: callbackData } }] : [];
   });
-  return keyboard.length ? { inline_keyboard: [keyboard] } : undefined;
+  if (!entries.length) return undefined;
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+  entries.forEach(({ button, item }, index) => {
+    const isReviewAction = button.action === "CONFIRM" || button.action === "REJECT";
+    const lastRow = keyboard.at(-1);
+    if (isReviewAction && lastRow?.length === 1 && entries[index - 1]?.button.action === "CONFIRM") {
+      lastRow.push(item);
+    } else {
+      keyboard.push([item]);
+    }
+  });
+  return { inline_keyboard: keyboard };
 }
 
 export function parseTelegramUpdate(value: unknown): TelegramWebhookEvent | null {
@@ -166,7 +197,8 @@ export function parseTelegramUpdate(value: unknown): TelegramWebhookEvent | null
         userId: callback.from?.id ?? "",
         callbackId: callback.id,
         action: callbackData.action,
-        draftId: callbackData.draftId
+        draftId: callbackData.draftId,
+        ...(callbackData.optionIndex == null ? {} : { optionIndex: callbackData.optionIndex })
       };
     }
     return { kind: "unsupported", chatId };
@@ -256,15 +288,6 @@ function draftFromResponse(result: JsonRecord) {
   return result.draft as TelegramDraftSummary | undefined;
 }
 
-function confirmButtons(draft: TelegramDraftSummary) {
-  return telegramDraftCanConfirm(draft)
-    ? [
-      { text: "✅ Confirmar", action: "CONFIRM" as const, draftId: draft.id },
-      { text: "🗑 Descartar", action: "REJECT" as const, draftId: draft.id }
-    ]
-    : [];
-}
-
 async function handleMessage(
   event: Extract<TelegramWebhookEvent, { kind: "message" }>,
   config: TelegramWebhookConfig,
@@ -296,7 +319,7 @@ async function handleMessage(
   }
   const draft = draftFromResponse(result);
   if (!draft) throw new Error("El servidor no devolvió un borrador válido");
-  const buttons = confirmButtons(draft);
+  const buttons = telegramDraftButtons(draft);
   await sendMessage(config, event.chatId, telegramDraftText(draft), buttons);
   return json({ ok: true, type: result.duplicate === true ? "DRAFT_ALREADY_EXISTS" : result.continued === true ? "DRAFT_UPDATED" : "DRAFT_CREATED" });
 }
@@ -308,6 +331,31 @@ async function handleCallback(
   dependencies: TelegramWebhookDependencies
 ) {
   const sendMessage = dependencies.sendMessage ?? defaultSendMessage;
+  if (event.action === "CREATE_CUSTOMER" || event.action === "CREATE_PRODUCT" || event.action === "SELECT_PRODUCT") {
+    const entityAction: CaptureDraftEntityAction = event.action === "SELECT_PRODUCT"
+      ? { type: "SELECT_PRODUCT", optionIndex: event.optionIndex ?? -1 }
+      : { type: event.action };
+    const response = await (dependencies.resolveDraftEntity ?? resolveCaptureDraftEntity)(user, event.draftId, entityAction);
+    const result = await responseBody(response);
+    if (response.ok) {
+      const draft = draftFromResponse(result);
+      if (!draft) throw new Error("El servidor no devolvió un borrador válido");
+      const message = event.action === "CREATE_CUSTOMER"
+        ? "✅ Clienta registrada."
+        : event.action === "CREATE_PRODUCT"
+          ? "✅ Producto registrado."
+          : "✅ Producto seleccionado.";
+      await sendMessage(config, event.chatId, message + "\n\n" + telegramDraftText(draft), telegramDraftButtons(draft));
+      return json({ ok: true, type: "DRAFT_UPDATED" });
+    }
+    if (response.status === 409 && result.code === "CAPTURE_DRAFT_PROCESSED") {
+      await sendMessage(config, event.chatId, "ℹ️ Este borrador ya fue procesado; no se modificó el catálogo.");
+      return json({ ok: true, type: "ALREADY_PROCESSED" });
+    }
+    if (response.status >= 500) throw new Error("No se pudo resolver la entidad Telegram");
+    await sendMessage(config, event.chatId, "⚠️ " + (stringValue(result.error) || "No se pudo resolver la entidad."));
+    return json({ ok: true, type: "USER_ERROR" });
+  }
   const response = event.action === "CONFIRM"
     ? await (dependencies.confirmDraft ?? confirmCaptureDraft)(new Request("http://minierp.local/api/capture/drafts/" + event.draftId + "/confirm", {
       method: "POST",
