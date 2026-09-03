@@ -31,6 +31,9 @@ const payloadSchema = z.object({
   customerPhone: z.string().trim().max(40).optional(),
   productId: z.string().uuid().optional(),
   productName: z.string().trim().max(160).optional(),
+  productCandidates: z.array(z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(160) })).max(3).optional(),
+  customerResolution: z.enum(["PENDING_CREATE", "RESOLVED"]).optional(),
+  productResolution: z.enum(["PENDING_CREATE", "RESOLVED"]).optional(),
   materialId: z.string().uuid().optional(),
   materialName: z.string().trim().max(160).optional(),
   supplierId: z.string().uuid().optional(),
@@ -179,6 +182,24 @@ async function lockDraft(transaction: DbTransaction, businessId: string, id: str
   return row ?? null;
 }
 
+export type CaptureDraftEntityAction =
+  | { type: "CREATE_CUSTOMER" }
+  | { type: "CREATE_PRODUCT" }
+  | { type: "SELECT_PRODUCT"; optionIndex: number };
+
+async function activeEntityCatalog(transaction: DbTransaction, businessId: string) {
+  const [customerRows, productRows, archivedRows] = await Promise.all([
+    transaction.select({ id: customers.id, name: customers.name, phone: customers.phone }).from(customers).where(eq(customers.businessId, businessId)),
+    transaction.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.businessId, businessId), eq(products.active, true))),
+    transaction.execute(sql`select entity_type, entity_id from deleted_records where business_id=${businessId}::uuid and entity_type in ('CUSTOMER','PRODUCT')`)
+  ]);
+  const archived = new Set(archivedRows.rows.map((row) => String(row.entity_type) + ":" + String(row.entity_id)));
+  return {
+    customers: customerRows.filter((row) => !archived.has("CUSTOMER:" + row.id)),
+    products: productRows.filter((row) => !archived.has("PRODUCT:" + row.id))
+  };
+}
+
 function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "23505";
 }
@@ -211,7 +232,8 @@ function payloadKeysForFields(fields: string[]) {
   const add = (...values: Array<keyof CapturePayload>) => values.forEach((value) => keys.add(value));
   for (const field of fields) {
     if (field === "customer") add("customerId", "customerName", "customerPhone");
-    else if (field === "product") add("productId", "productName");
+    else if (field === "product") add("productId", "productName", "productCandidates", "productResolution");
+    else if (field === "productPrice") add("agreedTotalPrice");
     else if (field === "material") add("materialId", "materialName");
     else if (field === "supplier") add("supplierId", "supplierName");
     else if (field === "promisedDeliveryDate") add("promisedDeliveryDate", "deliveryText");
@@ -235,7 +257,10 @@ function selectPayloadKeys(payload: CapturePayload, keys: Set<keyof CapturePaylo
 }
 
 function fieldResolved(field: string, payload: CapturePayload) {
-  if (["customer", "product", "material"].includes(field)) return Boolean(payload[`${field}Id` as keyof CapturePayload]);
+  if (field === "customer") return Boolean(payload.customerId) || payload.customerResolution === "RESOLVED";
+  if (field === "product") return Boolean(payload.productId) || payload.productResolution === "RESOLVED";
+  if (field === "material") return Boolean(payload.materialId);
+  if (field === "productPrice") return typeof payload.agreedTotalPrice === "number" && Number.isFinite(payload.agreedTotalPrice) && payload.agreedTotalPrice > 0;
   if (field === "size") return Boolean(payload.size);
   if (field === "color") return Boolean(payload.color?.trim());
   if (field === "promisedDeliveryDate") return Boolean(payload.promisedDeliveryDate);
@@ -381,17 +406,23 @@ export async function createCaptureDraft(request: Request, user: AuthUser) {
         const locked = await lockConversationDraft(tx, user.businessId, channel, body.conversationKey!);
         if (!locked) return { kind: "new" as const };
         const intent = locked.intent as CaptureIntent;
-        const combined = parseCaptureMessage(locked.rawText + "\n" + body.rawText, catalog, new Date(), intent);
-        const reply = parseCaptureMessage(body.rawText, catalog, new Date(), intent);
-        const completionKeys = payloadKeysForFields([
+        const completionFields = [
           ...readJson<string[]>(locked.missingFieldsJson, []),
           ...readJson<string[]>(locked.ambiguousFieldsJson, [])
-        ]);
+        ];
+        const combined = parseCaptureMessage(locked.rawText + "\n" + body.rawText, catalog, new Date(), intent);
+        const reply = parseCaptureMessage(body.rawText, catalog, new Date(), intent, { completionFields });
+        const completionKeys = payloadKeysForFields(completionFields);
         const payload = mergeCapturePayload(
           readJson<CapturePayload>(locked.payloadJson, {}),
           selectPayloadKeys(combined.payload, completionKeys),
           selectPayloadKeys(reply.payload, completionKeys)
         );
+        if (completionFields.includes("customer") && reply.payload.customerId) delete payload.customerResolution;
+        if (completionFields.includes("product") && reply.payload.productName) {
+          if (reply.payload.productId || !reply.payload.productCandidates?.length) delete payload.productCandidates;
+          if (reply.payload.productId) delete payload.productResolution;
+        }
         const [row] = await tx.update(captureDrafts).set({
           rawText: locked.rawText + "\n" + body.rawText,
           payloadJson: JSON.stringify(payload),
@@ -459,6 +490,104 @@ export async function createCaptureDraft(request: Request, user: AuthUser) {
   }
   if (!created) throw new Error("No se pudo crear el borrador");
   return json({ duplicate: false, draft: serializeDraft(created) }, 201);
+}
+
+export async function resolveCaptureDraftEntity(user: AuthUser, id: string, action: CaptureDraftEntityAction) {
+  const result = await db.transaction(async (tx) => {
+    const locked = await lockDraft(tx, user.businessId, id);
+    if (!locked) return { kind: "missing" as const };
+    if (locked.status !== "PENDING") return { kind: "processed" as const, draft: locked };
+    if (locked.intent !== "NEW_ORDER") return { kind: "failure" as const, error: "Esta acción solo aplica a borradores de pedidos.", status: 400 as const };
+
+    const parsedPayload = payloadSchema.safeParse(readJson<CapturePayload>(locked.payloadJson, {}));
+    if (!parsedPayload.success) return { kind: "failure" as const, error: "El borrador tiene datos inválidos.", status: 400 as const };
+    const payload = parsedPayload.data;
+    const catalog = await activeEntityCatalog(tx, user.businessId);
+    const nextPayload: CapturePayload = { ...payload };
+    const ambiguousFields = readJson<string[]>(locked.ambiguousFieldsJson, []);
+    let resolution: "CUSTOMER" | "PRODUCT";
+
+    if (action.type === "CREATE_CUSTOMER") {
+      resolution = "CUSTOMER";
+      if (payload.customerId) return { kind: "updated" as const, draft: locked, resolution };
+      if (ambiguousFields.includes("customer")) return { kind: "failure" as const, error: "Hay más de una clienta parecida; escribe el nombre exacto.", status: 400 as const };
+      const name = payload.customerName?.trim();
+      if (!name) return { kind: "failure" as const, error: "Primero indica el nombre de la nueva clienta.", status: 400 as const };
+      const existing = catalog.customers.find((row) => normalizeCaptureText(row.name) === normalizeCaptureText(name));
+      const customer = existing ?? (await tx.insert(customers).values({
+        businessId: user.businessId,
+        name,
+        phone: payload.customerPhone?.trim() || null
+      }).returning({ id: customers.id, name: customers.name, phone: customers.phone }))[0];
+      if (!customer) throw new Error("No se pudo crear la clienta");
+      nextPayload.customerId = customer.id;
+      nextPayload.customerName = customer.name;
+      nextPayload.customerPhone = customer.phone ?? payload.customerPhone;
+      nextPayload.customerResolution = "RESOLVED";
+    } else {
+      resolution = "PRODUCT";
+      if (payload.productId) return { kind: "updated" as const, draft: locked, resolution };
+      if (action.type === "CREATE_PRODUCT" && ambiguousFields.includes("product")) return { kind: "failure" as const, error: "Hay más de un producto parecido; elige el nombre exacto.", status: 400 as const };
+      let product: { id: string; name: string } | undefined;
+      if (action.type === "SELECT_PRODUCT") {
+        if (!Number.isInteger(action.optionIndex) || action.optionIndex < 0 || action.optionIndex > 2) {
+          return { kind: "failure" as const, error: "La opción de producto no es válida.", status: 400 as const };
+        }
+        const candidate = payload.productCandidates?.[action.optionIndex];
+        product = candidate ? catalog.products.find((row) => row.id === candidate.id) : undefined;
+        if (!product) return { kind: "failure" as const, error: "Ese producto sugerido ya no está disponible.", status: 409 as const };
+      } else {
+        const name = payload.productName?.trim();
+        if (!name) return { kind: "failure" as const, error: "Primero indica el nombre del nuevo producto.", status: 400 as const };
+        product = catalog.products.find((row) => normalizeCaptureText(row.name) === normalizeCaptureText(name));
+        if (!product) {
+          const price = Number(payload.agreedTotalPrice);
+          if (!Number.isFinite(price) || price <= 0) {
+            return { kind: "failure" as const, error: "Para crear el producto necesito su precio base. Responde, por ejemplo: precio 250.", status: 400 as const };
+          }
+          const [createdProduct] = await tx.insert(products).values({
+            businessId: user.businessId,
+            name,
+            type: "OTHER",
+            baseSalePrice: String(price),
+            leadTimeDays: 25,
+            notes: "Creado desde captura Telegram"
+          }).returning({ id: products.id, name: products.name });
+          if (!createdProduct) throw new Error("No se pudo crear el producto");
+          await tx.insert(productSizePrices).values(sizes.map((size) => ({
+            productId: createdProduct.id,
+            size,
+            priceAdjustment: "0"
+          })));
+          product = createdProduct;
+        }
+      }
+      nextPayload.productId = product.id;
+      nextPayload.productName = product.name;
+      nextPayload.productResolution = "RESOLVED";
+      delete nextPayload.productCandidates;
+    }
+
+    const missingFields = resolvedMissingFields(readJson<string[]>(locked.missingFieldsJson, []), nextPayload);
+    const remainingAmbiguousFields = ambiguousFields.filter((field) => !fieldResolved(field, nextPayload));
+    const [updated] = await tx.update(captureDrafts).set({
+      payloadJson: JSON.stringify(nextPayload),
+      missingFieldsJson: JSON.stringify(missingFields),
+      ambiguousFieldsJson: JSON.stringify(remainingAmbiguousFields),
+      updatedAt: new Date()
+    }).where(and(
+      eq(captureDrafts.id, id),
+      eq(captureDrafts.businessId, user.businessId),
+      eq(captureDrafts.status, "PENDING")
+    )).returning();
+    if (!updated) throw new Error("No se pudo actualizar el borrador");
+    return { kind: "updated" as const, draft: updated, resolution };
+  });
+
+  if (result.kind === "missing") return json({ error: "Borrador no encontrado." }, 404);
+  if (result.kind === "processed") return json({ error: "Este borrador ya fue procesado.", code: "CAPTURE_DRAFT_PROCESSED" }, 409);
+  if (result.kind === "failure") return json({ error: result.error }, result.status);
+  return json({ draft: serializeDraft(result.draft), resolution: result.resolution });
 }
 
 export async function listCaptureDrafts(user: AuthUser) {
