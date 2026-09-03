@@ -4,31 +4,29 @@ OpenClaw se utiliza únicamente para QA, backup y despliegue. No debe modificar 
 
 ## Prompt canónico
 
-Enviar por Telegram:
+Enviar por Telegram o Discord. El texto tiene menos de 2000 caracteres:
 
 ```text
 QA + DEPLOY CONDICIONADO — miniERP
 
-Contexto: miniERP es el ERP de Samiiwara. Producción está sana en eb455839c42ef0b6e411edfc4f356dae3fe00b1d (no usarla para pruebas). OpenClaw solo hace QA, backup y deploy; no se integra al runtime ni a Telegram/WhatsApp funcional.
-
 Repo: gumorenos/miniERP
-Rama QA: qa/miniERP-conversation-multiturn
-SHA exacto candidato: eb455839c42ef0b6e411edfc4f356dae3fe00b1d
-Producción: https://prueba.gumorenos.space
+Rama: qa/miniERP-telegram-entity-resolution
+SHA EXACTO: 65944069ca7b9a9a6fda8cd10342f08073d611c1
+Producción actual: f0a01b53f427da5709ea55989a82fdec079bb791
+URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
-1) Verifica el SHA exacto con fetch, cat-file y checkout detached. Si no existe o no coincide: STOP. No uses otro SHA, HEAD ni la cabeza de la rama como fallback.
-2) En worktree y PostgreSQL aislados ejecuta npm ci, npm run qa, migraciones desde cero e idempotentes sobre copia, test:e2e y docker build.
-3) Verifica migración 0016: conversation_key, capture_draft_messages y backfill de mensajes históricos.
-4) Prueba multi-turno en Telegram simulado y UI interna: mensaje incompleto, respuesta posterior, mismo draftId, preguntas/botones correctos y confirmación. Verifica que la UI no preseleccione talla S cuando falta. Repite mensajes y confirma que no duplica borrador ni operación. Prueba respuestas y confirmaciones concurrentes.
-5) Verifica callbacks Telegram simulados, stock negativo, transacciones/idempotencia existentes y ausencia de referencias o dependencia de OpenClaw en src/runtime.
-6) Si falla cualquier gate: NO despliegues. Reporta FAIL, SHA, comando y error.
-7) Solo si todo pasa: backup PostgreSQL, despliega EXACTAMENTE el SHA candidato, aplica migraciones, health local/público y smoke autenticado. Si faltan credenciales reales, no inventes: detén el deploy y reporta el bloqueo.
-8) Si deploy/smoke falla: rollback controlado a la imagen/commit anterior, verifica health y reporta backup, rollback y producción final.
+OpenClaw solo hace QA, backup y deploy; no modifica código ni forma parte del runtime. Verifica que el SHA exista y haz checkout detached exacto. Si falla: STOP. No uses HEAD, otro SHA ni fallback.
 
-Respuesta breve: PASS/FAIL, SHA, QA, migraciones, multi-turno, deploy sí/no, smoke, rollback y bloqueos. No incluyas secretos, cookies ni tokens.
+En entornos aislados ejecuta: npm ci, npm run qa, migraciones 0001–0016 desde cero e idempotentes, E2E, concurrencia/idempotencia y docker build.
+
+Comprueba: botones inline para cliente/producto no resueltos; cliente desconocido -> “Crear clienta”; producto desconocido -> hasta 3 similares y “Crear producto” si ninguno sirve; sin similares también ofrece crear; respuesta posterior conserva conversationKey y draftId; seleccionar/crear actualiza el mismo borrador; replay/concurrencia no duplica; crear producto exige precio explícito, queda OTHER y la orden sigue requiriendo Confirmar; callbacks <64 caracteres y solo para IDs autorizados 59414146; stock negativo y regresiones; OpenClaw ausente del runtime.
+
+Verifica las seis variables Telegram en .env.production sin imprimir valores. Si falla un gate: NO despliegues. Si todo pasa: backup, deploy exacto, migraciones, health local/público y smoke autenticado. Usa datos sintéticos; no confirmes operaciones reales. Si deploy/smoke falla, rollback y health.
+
+Reporta breve: PASS/FAIL, SHA exacto, QA, botones/resolución, Telegram simulado, deploy, smoke, rollback y bloqueo. Sin secretos, cookies ni tokens.
 ```
 
 ## Criterio de identificación
 
-El SHA que debe probarse es `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.
+El SHA que debe probarse es `65944069ca7b9a9a6fda8cd10342f08073d611c1`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.
