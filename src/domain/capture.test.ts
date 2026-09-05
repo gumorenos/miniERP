@@ -109,6 +109,26 @@ describe("capture parser", () => {
     expect(result.payload.name).toBe("Rosa Huamán");
   });
 
+  it("parses a standalone size answer from a Telegram follow-up", () => {
+    const result = parseCaptureMessage("M", catalog, new Date(), "NEW_ORDER", { completionFields: ["size"] });
+    expect(result.payload.size).toBe("M");
+    expect(result.missingFields).not.toContain("size");
+  });
+
+  it("recognizes a standalone size inside a natural order message", () => {
+    const result = parseCaptureMessage("María quiere vestido Margarita azul M", catalog, new Date());
+    expect(result.payload.size).toBe("M");
+  });
+
+  it("stops the explicit customer name before the order verb", () => {
+    const result = parseCaptureMessage("cliente: Ana quiere vestido Sol talla M azul precio 250", catalog, new Date());
+    expect(result.payload.customerName).toBe("Ana");
+    expect(result.payload.productName).toBe("vestido Sol");
+    expect(result.payload.size).toBe("M");
+    expect(result.payload.color).toBe("Azul");
+    expect(result.payload.agreedTotalPrice).toBe(250);
+  });
+
   it("parses a follow-up product and size using the existing order context", () => {
     const result = parseCaptureMessage("Vestido Margarita talla M", catalog, new Date(), "NEW_ORDER");
     expect(result.payload.productId).toBe("product-1");
