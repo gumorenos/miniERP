@@ -223,7 +223,12 @@ export function findSimilarProductCandidates(name: string | undefined, candidate
 
 function extractCustomerName(text: string) {
   const explicit = text.match(/(?:cliente|clienta)\s*(?:es|se llama|:)?\s*([A-Za-zÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑ' -]{1,70})/i);
-  if (explicit?.[1]) return cleanName(explicit[1].split(stopWords)[0].split(/\s+(?:producto|prenda|modelo)\b/i)[0]);
+  if (explicit?.[1]) {
+    return cleanName(explicit[1]
+      .split(stopWords)[0]
+      .split(/\s+(?:quiere|pide|encarga|necesita)\b/i)[0]
+      .split(/\s+(?:producto|prenda|modelo)\b/i)[0]);
+  }
   const beforeVerb = text.match(/^(?:pedido\s+(?:para\s+)?)?(.+?)\s+(?:quiere|pide|encarga|necesita)\b/i);
   if (beforeVerb?.[1] && !/^yo|quiero$/i.test(cleanName(beforeVerb[1]))) return cleanName(beforeVerb[1].replace(/^para\s+/i, ""));
   return undefined;
@@ -265,7 +270,9 @@ function standaloneProductName(text: string) {
 }
 
 function findSize(text: string): Size | undefined {
-  const match = normalizeCaptureText(text).match(/\b(?:talla|talle|tamano)\s*(?:es\s*)?(XXL|XL|S|M|L)\b/i);
+  const normalized = normalizeCaptureText(text);
+  const labeled = normalized.match(/\b(?:talla|talle|tamano)\s*(?:es\s*)?(XXL|XL|S|M|L)\b/i);
+  const match = labeled ?? normalized.match(/(?:^|[\s,;(])\b(XXL|XL|S|M|L)\b(?=$|[\s,.;)])/i);
   return match?.[1]?.toUpperCase() as Size | undefined;
 }
 
