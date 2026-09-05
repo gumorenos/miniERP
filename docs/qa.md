@@ -1,12 +1,12 @@
 # QA — miniERP / Samiiwara
 
-Última actualización: 2026-08-25
+Última actualización: 2026-09-05
 
 ## Base productiva
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`
-- Estado: PASS en health, smoke autenticado HTTPS, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado 19/19 y Docker.
+- SHA desplegado: `65944069ca7b9a9a6fda8cd10342f08073d611c1`
+- Estado: PASS en health, smoke autenticado HTTPS, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado, botones de resolución y Docker.
 - OpenClaw no forma parte del runtime.
 
 ## Gates generales
@@ -27,15 +27,15 @@ El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stoc
 
 ## Último candidato desplegado
 
-- Rama: `qa/miniERP-conversation-multiturn`.
-- SHA exacto: `eb455839c42ef0b6e411edfc4f356dae3fe00b1d`.
+- Rama: `qa/miniERP-telegram-entity-resolution`.
+- SHA exacto: `65944069ca7b9a9a6fda8cd10342f08073d611c1`.
 - Estado: QA remoto PASS y desplegado exactamente en producción.
 
 Validación local actual:
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 55/55.
+- Vitest: PASS, 61/61.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
@@ -49,6 +49,12 @@ Validación local actual:
 - [x] Confirmar que la UI no preselecciona talla S cuando falta.
 - [x] Confirmar ausencia de referencias OpenClaw en el runtime.
 - [x] Docker build, backup, deploy exacto, migraciones productivas, health y smoke autenticado.
+
+## Candidato actual — paridad UI
+
+- SHA exacto: `022703566033fb8c8fec13314985631951f2e938`.
+- Añade botones de resolución de cliente/producto a la UI interna y creación de producto con precio escrito en pantalla.
+- Estado: QA/deploy pendiente; producción no debe tocarse desde Codex.
 
 ## QA de Telegram real — pendiente separado
 
