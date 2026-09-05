@@ -13,15 +13,15 @@
 ## Estado productivo
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `65944069ca7b9a9a6fda8cd10342f08073d611c1`
+- SHA desplegado: `022703566033fb8c8fec13314985631951f2e938`
 - Último resultado: PASS en QA/deploy, 61 tests, migraciones 16/16, E2E, concurrencia/idempotencia, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
-- Backup previo validado: `backups/minierp-prod-pre-65944069-20260903T082336-0500.dump`.
-- Producción quedó desplegada exactamente en `65944069…`; no fue necesario rollback.
+- Backup previo validado: `backups/minierp-prod-pre-65944069ca7b-20260905T155051-0500.dump`.
+- Producción quedó desplegada exactamente en `022703566…`; no fue necesario rollback.
 
 ## Candidato actual
 
 - Rama: `qa/miniERP-telegram-entity-resolution`.
-- SHA funcional exacto remoto: `022703566033fb8c8fec13314985631951f2e938`.
+- SHA funcional exacto remoto: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`.
 - Estado: candidato publicado; QA remoto/deploy pendientes. OpenClaw debe probar exactamente este SHA, no el HEAD posterior de la rama.
 
 Incluye:
@@ -39,19 +39,20 @@ Incluye:
 - Producto desconocido: hasta tres productos similares o botón para crear uno nuevo; la selección/creación conserva el mismo borrador.
 - Crear producto requiere precio explícito, lo registra inicialmente como `OTHER` y no confirma la orden automáticamente.
 - La UI interna ofrece las mismas acciones de resolución y puede usar el precio escrito en pantalla para crear el producto explícitamente.
+- El parser reconoce respuestas aisladas de talla (`S`, `M`, `L`, `XL`, `XXL`) y separa `cliente: Ana` del resto del pedido.
 
 ## Validación
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 61/61 pruebas.
+- Vitest: PASS, 64/64 pruebas.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 - QA remoto/OpenClaw del candidato: pendiente.
 
 ## Próximo orden de trabajo
 
-1. Ejecutar QA y deploy condicionado del SHA `022703566…` mediante OpenClaw.
+1. Ejecutar QA y deploy condicionado del SHA `291aeb1…` mediante OpenClaw.
 2. Probar manualmente con el bot autorizado y la UI interna los botones de cliente/producto, sin confirmar operaciones reales.
 3. Observar el uso real y ajustar parser/preguntas con evidencia.
 4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
