@@ -11,8 +11,8 @@ QA + DEPLOY CONDICIONADO — miniERP
 
 Repo: gumorenos/miniERP
 Rama: qa/miniERP-telegram-entity-resolution
-SHA EXACTO: 65944069ca7b9a9a6fda8cd10342f08073d611c1
-Producción actual: f0a01b53f427da5709ea55989a82fdec079bb791
+SHA EXACTO: 022703566033fb8c8fec13314985631951f2e938
+Producción actual: 65944069ca7b9a9a6fda8cd10342f08073d611c1
 URL: https://prueba.gumorenos.space
 VPS: /home/ubuntu/apps/minierp-samiiwara
 
@@ -20,7 +20,7 @@ OpenClaw solo hace QA, backup y deploy; no modifica código ni forma parte del r
 
 En entornos aislados ejecuta: npm ci, npm run qa, migraciones 0001–0016 desde cero e idempotentes, E2E, concurrencia/idempotencia y docker build.
 
-Comprueba: botones inline para cliente/producto no resueltos; cliente desconocido -> “Crear clienta”; producto desconocido -> hasta 3 similares y “Crear producto” si ninguno sirve; sin similares también ofrece crear; respuesta posterior conserva conversationKey y draftId; seleccionar/crear actualiza el mismo borrador; replay/concurrencia no duplica; crear producto exige precio explícito, queda OTHER y la orden sigue requiriendo Confirmar; callbacks <64 caracteres y solo para IDs autorizados 59414146; stock negativo y regresiones; OpenClaw ausente del runtime.
+Comprueba Telegram y la UI interna “Capturar por chat”: cliente desconocido -> “Crear clienta”; producto desconocido -> hasta 3 similares y “Crear producto”; seleccionar/crear actualiza el mismo draftId y conversationKey; crear producto exige precio explícito, queda OTHER y la orden sigue requiriendo Confirmar; replay/concurrencia no duplica; callbacks <64 caracteres, usuario 59414146 autorizado; talla S no preseleccionada; stock negativo, regresiones y OpenClaw ausente del runtime.
 
 Verifica las seis variables Telegram en .env.production sin imprimir valores. Si falla un gate: NO despliegues. Si todo pasa: backup, deploy exacto, migraciones, health local/público y smoke autenticado. Usa datos sintéticos; no confirmes operaciones reales. Si deploy/smoke falla, rollback y health.
 
@@ -29,4 +29,4 @@ Reporta breve: PASS/FAIL, SHA exacto, QA, botones/resolución, Telegram simulado
 
 ## Criterio de identificación
 
-El SHA que debe probarse es `65944069ca7b9a9a6fda8cd10342f08073d611c1`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.
+El SHA que debe probarse es `022703566033fb8c8fec13314985631951f2e938`. La rama puede tener commits posteriores solo de documentación; eso no autoriza a usar su HEAD como sustituto.
