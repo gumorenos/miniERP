@@ -64,7 +64,7 @@ Para generar un secreto localmente:
 
 ## Estado y validación pendiente
 
-El webhook productivo y las seis variables ya están configurados en el VPS. El candidato de resolución de entidades aún requiere QA/deploy condicionado y luego prueba manual con el bot autorizado. Usar datos sintéticos y no confirmar operaciones reales.
+El webhook productivo y las seis variables ya están configurados en el VPS. La resolución de entidades está desplegada en `65944069…`; el candidato `022703566…` añade la misma experiencia a la UI interna. Usar datos sintéticos y no confirmar operaciones reales.
 
 1. Ejecutar QA aislado con PostgreSQL, incluyendo idempotencia, botones y callbacks.
 2. Desplegar solo el commit exacto aprobado por QA y hacer smoke test.
