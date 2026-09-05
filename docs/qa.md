@@ -5,7 +5,7 @@
 ## Base productiva
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `65944069ca7b9a9a6fda8cd10342f08073d611c1`
+- SHA desplegado: `022703566033fb8c8fec13314985631951f2e938`
 - Estado: PASS en health, smoke autenticado HTTPS, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado, botones de resolución y Docker.
 - OpenClaw no forma parte del runtime.
 
@@ -28,7 +28,7 @@ El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stoc
 ## Último candidato desplegado
 
 - Rama: `qa/miniERP-telegram-entity-resolution`.
-- SHA exacto: `65944069ca7b9a9a6fda8cd10342f08073d611c1`.
+- SHA exacto: `022703566033fb8c8fec13314985631951f2e938`.
 - Estado: QA remoto PASS y desplegado exactamente en producción.
 
 Validación local actual:
@@ -50,10 +50,11 @@ Validación local actual:
 - [x] Confirmar ausencia de referencias OpenClaw en el runtime.
 - [x] Docker build, backup, deploy exacto, migraciones productivas, health y smoke autenticado.
 
-## Candidato actual — paridad UI
+## Candidato actual — parser de captura Telegram
 
-- SHA exacto: `022703566033fb8c8fec13314985631951f2e938`.
-- Añade botones de resolución de cliente/producto a la UI interna y creación de producto con precio escrito en pantalla.
+- SHA exacto: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`.
+- Corrige respuestas aisladas de talla y separa el nombre explícito de la clienta del resto del pedido.
+- Añade tres regresiones del parser; validación local: 64/64.
 - Estado: QA/deploy pendiente; producción no debe tocarse desde Codex.
 
 ## QA de Telegram real — pendiente separado
