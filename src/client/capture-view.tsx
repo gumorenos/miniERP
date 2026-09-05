@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { captureFollowUpPrompt, captureIntentLabel } from "../domain/capture";
-import { captureApi, type CaptureDraft } from "./capture-api";
+import { captureApi, type CaptureDraft, type CaptureDraftEntityAction } from "./capture-api";
 import type { Bootstrap, Customer, OrderDetail, Product } from "./api";
 
 const sizes = ["S", "M", "L", "XL", "XXL"] as const;
@@ -135,6 +135,18 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
     } finally { setBusy(false); }
   };
 
+  const resolveEntity = async (action: CaptureDraftEntityAction) => {
+    if (!draft) return;
+    setError(""); setSuccess(""); setBusy(true);
+    try {
+      const result = await captureApi.resolveEntity(draft.id, action);
+      hydrateDraft(result.draft);
+      setRecentDrafts((current) => [result.draft, ...current.filter((item) => item.id !== result.draft.id)].slice(0, 8));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo resolver la entidad.");
+    } finally { setBusy(false); }
+  };
+
   const confirm = async () => {
     if (!draft) return;
     setError(""); setSuccess(""); setBusy(true);
@@ -238,12 +250,39 @@ export function CaptureView({ data, onCancel, onChanged, onCreated }: {
         <div className="capture-footer"><p className="helper">La respuesta se añadirá al mismo borrador; todavía no se guarda ninguna operación.</p><button disabled={busy || followUpMessage.trim().length < 2}>{busy ? "Completando..." : "Completar borrador"}</button></div>
       </form>}
 
+      {draft.intent === "NEW_ORDER" && <EntityResolutionActions draft={draft} price={price} busy={busy} onResolve={resolveEntity} />}
       {draft.intent === "NEW_ORDER" && <OrderDraftFields data={data} draft={draft} customerId={customerId} setCustomerId={setCustomerId} productId={productId} setProductId={setProductId} size={size} setSize={setSize} color={color} setColor={setColor} price={price} setPrice={setPrice} advance={advance} setAdvance={setAdvance} method={method} setMethod={setMethod} delivery={delivery} setDelivery={setDelivery} product={product} />}
       {draft.intent === "NEW_CUSTOMER" && <div className="capture-grid"><label>Nombre *<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label><label>Teléfono<input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></label></div>}
       {draft.intent === "NEW_PURCHASE" && <OperationalDraftFields intent="NEW_PURCHASE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "NEW_EXPENSE" && <OperationalDraftFields intent="NEW_EXPENSE" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "STOCK_ADJUSTMENT" && <OperationalDraftFields intent="STOCK_ADJUSTMENT" data={data} materialId={materialId} setMaterialId={setMaterialId} supplierId={supplierId} setSupplierId={setSupplierId} operationDate={operationDate} setOperationDate={setOperationDate} quantity={operationQuantity} setQuantity={setOperationQuantity} amount={operationAmount} setAmount={setOperationAmount} unitCost={operationUnitCost} setUnitCost={setOperationUnitCost} paymentMethod={operationPaymentMethod} setPaymentMethod={setOperationPaymentMethod} category={operationCategory} setCategory={setOperationCategory} description={operationDescription} setDescription={setOperationDescription} orderId={operationOrderId} setOrderId={setOperationOrderId} />}\n      {draft.intent === "UNKNOWN" && <p className="muted">No pude identificar una operación segura. Prueba indicando pedido, compra, gasto o ajuste de stock.</p>}
       <div className="capture-footer"><p className="helper">Nada se guarda en el negocio hasta confirmar.</p><div className="actions capture-actions"><button type="button" className="ghost danger" onClick={reject} disabled={busy}>Descartar</button>{draft.intent !== "UNKNOWN" && <button type="button" onClick={confirm} disabled={busy || !draftReady(draft.intent, { customerId, productId, size, color, customerName, materialId, operationQuantity, operationAmount, operationUnitCost, operationDescription })}>{busy ? "Guardando..." : "Confirmar y guardar"}</button>}</div></div>
     </section>}
   </div>;
+}
+
+function EntityResolutionActions({ draft, price, busy, onResolve }: { draft: CaptureDraft; price: string; busy: boolean; onResolve: (action: CaptureDraftEntityAction) => Promise<void> }) {
+  const customerPending = draft.missingFields.includes("customer")
+    && !draft.ambiguousFields.includes("customer")
+    && Boolean(draft.payload.customerName?.trim())
+    && draft.payload.customerResolution === "PENDING_CREATE";
+  const productCandidates = draft.payload.productCandidates ?? [];
+  const productPending = draft.missingFields.includes("product")
+    && !draft.ambiguousFields.includes("product")
+    && Boolean(draft.payload.productName?.trim())
+    && (productCandidates.length > 0 || draft.payload.productResolution === "PENDING_CREATE");
+  if (!customerPending && !productPending) return null;
+
+  const explicitPrice = Number(price) > 0 ? Number(price) : Number(draft.payload.agreedTotalPrice);
+  const canCreateProduct = explicitPrice > 0;
+  return <section className="capture-resolution" aria-label="Resolver entidades del pedido">
+    <h3>Resolver datos del catálogo</h3>
+    <p className="muted">Estas acciones actualizan el borrador. El pedido todavía requiere una confirmación final.</p>
+    {customerPending && <div className="capture-resolution-actions"><button type="button" onClick={() => onResolve({ type: "CREATE_CUSTOMER" })} disabled={busy}>＋ Crear clienta{draft.payload.customerName ? ` “${draft.payload.customerName}”` : ""}</button></div>}
+    {productPending && <>
+      {productCandidates.length > 0 && <><p>Encontré productos parecidos:</p><div className="capture-resolution-actions">{productCandidates.map((candidate, index) => <button type="button" className="secondary" key={candidate.id} onClick={() => onResolve({ type: "SELECT_PRODUCT", optionIndex: index })} disabled={busy}>Usar {candidate.name}</button>)}</div></>}
+      <div className="capture-resolution-actions"><button type="button" onClick={() => onResolve({ type: "CREATE_PRODUCT", price: explicitPrice })} disabled={busy || !canCreateProduct}>＋ Crear producto{draft.payload.productName ? ` “${draft.payload.productName}”` : ""}</button></div>
+      {!canCreateProduct && <p className="field-hint">Para crear el producto nuevo, completa primero el precio explícito en el mensaje de seguimiento.</p>}
+    </>}
+  </section>;
 }
 
 function draftReady(intent: CaptureDraft["intent"], fields: { customerId: string; productId: string; size: string; color: string; customerName: string; materialId: string; operationQuantity: string; operationAmount: string; operationUnitCost: string; operationDescription: string }) {
