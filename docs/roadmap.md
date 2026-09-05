@@ -16,11 +16,12 @@ Este documento conserva explícitamente decisiones postergadas. Un ítem pendien
 ## Operación del taller
 
 - Automatización de WhatsApp mediante proveedor/API. La etapa actual solo genera enlaces y mensajes para revisión humana antes de enviar.
-- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `65944069ca7b9a9a6fda8cd10342f08073d611c1`, con QA aislado, E2E, concurrencia/idempotencia, migraciones 0016, Docker, health y smoke autenticado PASS. El webhook está activo. OpenClaw queda fuera del runtime.
+- **Captura conversacional — núcleo v1, hardening inicial y webhook directo de Telegram implementados y desplegados.** Producción está en `022703566033fb8c8fec13314985631951f2e938`, con QA aislado, E2E, concurrencia/idempotencia, migraciones 0016, Docker, health y smoke autenticado PASS. El webhook está activo. OpenClaw queda fuera del runtime.
 - **Seguimiento conversacional UX — implementado localmente.** Los borradores incompletos o ambiguos muestran preguntas agrupadas y la confirmación sigue bloqueada hasta resolverlas.
 - **Captura multi-turno — publicada y desplegada.** `f0a01b53f427da5709ea55989a82fdec079bb791` añade captura por conversación en Telegram y en la UI interna, junto con la migración 0016. Asocia mensajes, permite completar el mismo borrador, registra cada mensaje y evita replay/duplicados.
 - **Resolución de entidades Telegram — publicada y desplegada.** `65944069ca7b9a9a6fda8cd10342f08073d611c1` añade botones para crear clientas, seleccionar productos similares o crear productos nuevos de forma explícita, conservando el mismo borrador y la confirmación humana.
-- **Paridad de resolución en UI interna — candidato publicado, QA/deploy pendientes.** `022703566033fb8c8fec13314985631951f2e938` añade botones equivalentes en “Capturar por chat” y permite usar el precio escrito en pantalla para crear un producto explícitamente.
+- **Paridad de resolución en UI interna — publicada y desplegada.** `022703566033fb8c8fec13314985631951f2e938` añade botones equivalentes en “Capturar por chat” y permite usar el precio escrito en pantalla para crear un producto explícitamente.
+- **Parser Telegram — candidato publicado, QA/deploy pendientes.** `291aeb1eab75a2222c0bf577d45b3dbcd4f60953` reconoce respuestas aisladas de talla y evita mezclar `cliente: Ana` con la descripción del pedido.
 - **Hardening post-code-review — ya validado y desplegado como parte de `f0a01b53…`.** Mantener regresión de carreras de estado/stock y confirmaciones idempotentes en cada candidato posterior.
 - Intenciones iniciales de captura: nuevo pedido, nuevo cliente, nueva compra, nuevo gasto y ajuste de stock. La IA propone datos; nunca crea silenciosamente.
 - Audio e imágenes quedan después de estabilizar la captura textual y la confirmación.
