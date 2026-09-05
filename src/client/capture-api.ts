@@ -1,5 +1,10 @@
 import type { CaptureChannel, CaptureIntent, CapturePayload } from "../domain/capture";
 
+export type CaptureDraftEntityAction =
+  | { type: "CREATE_CUSTOMER" }
+  | { type: "CREATE_PRODUCT"; price?: number }
+  | { type: "SELECT_PRODUCT"; optionIndex: number };
+
 export type CaptureDraft = {
   id: string;
   channel: string;
@@ -46,5 +51,7 @@ export const captureApi = {
   listDrafts: () => request<{ rows: CaptureDraft[] }>("/api/capture/drafts"),
   confirmDraft: (id: string, payload: CapturePayload) =>
     request<{ draft: CaptureDraft; order?: { id: string; orderNumber: string }; customer?: { id: string; name: string } }>("/api/capture/drafts/" + id + "/confirm", { method: "POST", body: JSON.stringify({ payload }) }),
+  resolveEntity: (id: string, action: CaptureDraftEntityAction) =>
+    request<{ draft: CaptureDraft; resolution: "CUSTOMER" | "PRODUCT" }>("/api/capture/drafts/" + id + "/entity", { method: "POST", body: JSON.stringify(action) }),
   rejectDraft: (id: string) => request<{ draft: CaptureDraft }>("/api/capture/drafts/" + id + "/reject", { method: "POST", body: JSON.stringify({}) })
 };
