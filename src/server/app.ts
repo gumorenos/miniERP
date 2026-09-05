@@ -26,7 +26,7 @@ import { roundMoney, toNumber } from "../domain/money";
 import { orderStatuses, paymentMethods, sizes, type OrderStatus } from "../domain/types";
 import { seedDevelopment } from "../db/seed";
 import { authenticateToken, createSession, revokeSession, verifyPassword } from "./auth";
-import { confirmCaptureDraft, createCaptureDraft, listCaptureDrafts, rejectCaptureDraft } from "./capture";
+import { confirmCaptureDraft, createCaptureDraft, listCaptureDrafts, rejectCaptureDraft, resolveCaptureDraftEntity } from "./capture";
 import { nextOrderNumber } from "./order-number";
 import { weightedAverageCost } from "./stock-cost";
 import { AppError } from "./errors";
@@ -74,6 +74,12 @@ const transitionSchema = z.object({
   status: z.enum(orderStatuses),
   note: z.string().optional().nullable()
 });
+
+const captureDraftEntityActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("CREATE_CUSTOMER") }),
+  z.object({ type: z.literal("CREATE_PRODUCT"), price: z.number().positive().optional() }),
+  z.object({ type: z.literal("SELECT_PRODUCT"), optionIndex: z.number().int().min(0).max(2) })
+]);
 
 const cutSchema = z.object({
   actualFabricQty: z.coerce.number().positive().optional(),
@@ -173,6 +179,10 @@ function publicApp() {
 
   app.post("/api/capture/drafts", async (c) => createCaptureDraft(c.req.raw, c.get("user")));
   app.get("/api/capture/drafts", async (c) => listCaptureDrafts(c.get("user")));
+  app.post("/api/capture/drafts/:id/entity", async (c) => {
+    const action = captureDraftEntityActionSchema.parse(await c.req.json());
+    return resolveCaptureDraftEntity(c.get("user"), c.req.param("id"), action);
+  });
   app.post("/api/capture/drafts/:id/confirm", async (c) => confirmCaptureDraft(c.req.raw, c.get("user"), c.req.param("id")));
   app.post("/api/capture/drafts/:id/reject", async (c) => rejectCaptureDraft(c.get("user"), c.req.param("id")));
 
