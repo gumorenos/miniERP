@@ -184,7 +184,7 @@ async function lockDraft(transaction: DbTransaction, businessId: string, id: str
 
 export type CaptureDraftEntityAction =
   | { type: "CREATE_CUSTOMER" }
-  | { type: "CREATE_PRODUCT" }
+  | { type: "CREATE_PRODUCT"; price?: number }
   | { type: "SELECT_PRODUCT"; optionIndex: number };
 
 async function activeEntityCatalog(transaction: DbTransaction, businessId: string) {
@@ -541,10 +541,11 @@ export async function resolveCaptureDraftEntity(user: AuthUser, id: string, acti
         if (!name) return { kind: "failure" as const, error: "Primero indica el nombre del nuevo producto.", status: 400 as const };
         product = catalog.products.find((row) => normalizeCaptureText(row.name) === normalizeCaptureText(name));
         if (!product) {
-          const price = Number(payload.agreedTotalPrice);
+          const price = Number(action.type === "CREATE_PRODUCT" && action.price != null ? action.price : payload.agreedTotalPrice);
           if (!Number.isFinite(price) || price <= 0) {
             return { kind: "failure" as const, error: "Para crear el producto necesito su precio base. Responde, por ejemplo: precio 250.", status: 400 as const };
           }
+          nextPayload.agreedTotalPrice = price;
           const [createdProduct] = await tx.insert(products).values({
             businessId: user.businessId,
             name,
