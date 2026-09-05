@@ -1,6 +1,6 @@
 # Continuidad — miniERP / Samiiwara
 
-Última actualización: 2026-09-03
+Última actualización: 2026-09-05
 
 ## Reglas de trabajo
 
@@ -13,15 +13,15 @@
 ## Estado productivo
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `f0a01b53f427da5709ea55989a82fdec079bb791`
-- Último resultado: PASS en QA/deploy, 55/55 tests, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
-- Backup previo validado: `/home/ubuntu/apps/minierp-samiiwara/backups/minierp-prod-pre-f0a01b53-20260901T234510-0500.dump`.
-- Producción quedó desplegada exactamente en `f0a01b53…`; no fue necesario rollback.
+- SHA desplegado: `65944069ca7b9a9a6fda8cd10342f08073d611c1`
+- Último resultado: PASS en QA/deploy, 61 tests, migraciones 16/16, E2E, concurrencia/idempotencia, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
+- Backup previo validado: `backups/minierp-prod-pre-65944069-20260903T082336-0500.dump`.
+- Producción quedó desplegada exactamente en `65944069…`; no fue necesario rollback.
 
 ## Candidato actual
 
 - Rama: `qa/miniERP-telegram-entity-resolution`.
-- SHA funcional exacto remoto: `65944069ca7b9a9a6fda8cd10342f08073d611c1`.
+- SHA funcional exacto remoto: `022703566033fb8c8fec13314985631951f2e938`.
 - Estado: candidato publicado; QA remoto/deploy pendientes. OpenClaw debe probar exactamente este SHA, no el HEAD posterior de la rama.
 
 Incluye:
@@ -38,6 +38,7 @@ Incluye:
 - Cliente desconocido: botón explícito para crear clienta, sin creación silenciosa.
 - Producto desconocido: hasta tres productos similares o botón para crear uno nuevo; la selección/creación conserva el mismo borrador.
 - Crear producto requiere precio explícito, lo registra inicialmente como `OTHER` y no confirma la orden automáticamente.
+- La UI interna ofrece las mismas acciones de resolución y puede usar el precio escrito en pantalla para crear el producto explícitamente.
 
 ## Validación
 
@@ -50,8 +51,8 @@ Incluye:
 
 ## Próximo orden de trabajo
 
-1. Ejecutar QA y deploy condicionado del SHA `65944069…` mediante OpenClaw.
-2. Probar manualmente con el bot autorizado los botones de cliente/producto y el flujo multi-turno, sin confirmar operaciones reales.
+1. Ejecutar QA y deploy condicionado del SHA `022703566…` mediante OpenClaw.
+2. Probar manualmente con el bot autorizado y la UI interna los botones de cliente/producto, sin confirmar operaciones reales.
 3. Observar el uso real y ajustar parser/preguntas con evidencia.
 4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
 5. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
