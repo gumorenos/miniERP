@@ -13,6 +13,7 @@ import { handleOrderCreateWithAdvance } from "./order-create";
 import { guardOrderWorkflowMutation } from "./order-transition-guard";
 import { handlePaymentCreate } from "./payment-create";
 import { handleTelegramWebhook, telegramWebhookPath } from "./telegram-webhook";
+import { handleWhatsAppWebhook, whatsappWebhookPath } from "./whatsapp-webhook";
 import { handleWorkshopOperations, isWorkshopOperationsRequest } from "./workshop-operations-router";
 import { errorResponse, withSecurityHeaders } from "./errors";
 
@@ -40,6 +41,7 @@ export async function secureFetch(request:Request){
 async function secureFetchUnsafe(request:Request){
   const url=new URL(request.url);const token=bearerToken(request);
   if(url.pathname===telegramWebhookPath)return handleTelegramWebhook(request);
+  if(url.pathname===whatsappWebhookPath)return handleWhatsAppWebhook(request);
   if(request.method!=="GET"&&request.method!=="HEAD"&&url.pathname.startsWith("/api/")&&!writeAllowed(request))return json({error:"Demasiadas solicitudes de escritura. Intenta nuevamente en un minuto.",code:"RATE_LIMITED"},429,{"retry-after":"60"});
   if(url.pathname==="/api/health"&&request.method==="GET"){try{await db.execute(sql`select 1`);return json({ok:true,database:"ok"});}catch{return json({ok:false,database:"error"},503);}}
   if(url.pathname==="/api/auth/login"&&request.method==="POST"){if(!loginAllowed(request))return json({error:"Demasiados intentos. Intenta nuevamente en un minuto."},429);const parsed=loginRequestSchema.safeParse(await request.clone().json().catch(()=>null));if(!parsed.success)return json({error:"Revisa correo y contraseña"},400);const headers=new Headers(request.headers);headers.delete("content-length");return app.fetch(new Request(request.url,{method:"POST",headers,body:JSON.stringify({email:parsed.data.email.toLowerCase(),password:parsed.data.password})}));}

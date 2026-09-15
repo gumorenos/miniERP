@@ -36,6 +36,10 @@ The current pilot relies on application authentication plus login rate limiting.
 
 Telegram será una integración directa de miniERP mediante la API oficial del bot. El token vivirá únicamente en el entorno del servidor; el adaptador validará webhook, chat/usuario autorizado e idempotencia antes de crear borradores. OpenClaw no participa en el runtime funcional: queda limitado a testing, QA y despliegue. Activar Telegram solo después de QA aislado.
 
+### WhatsApp capture
+
+WhatsApp será una integración directa mediante WhatsApp Business Cloud API. El adaptador reutiliza el núcleo de captura, conserva `conversationKey`/idempotencia, valida la firma de Meta y limita los números autorizados. Las credenciales viven únicamente en `.env.production`; OpenClaw no participa en el runtime. La activación real requiere primero configurar la aplicación de Meta, el número de teléfono y el webhook HTTPS.
+
 ### Cloudflare Access — PENDING
 
 Cloudflare Access is intentionally **not enabled yet** for the current pilot, but it remains a pending defense-in-depth item and must not be removed from the roadmap. Before the pilot is widened to more users or treated as a longer-lived external service, evaluate and enable Cloudflare Access in front of the hostname unless there is a documented reason not to.

@@ -1,20 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { customerOrderMessage, normalizeWhatsAppPhone, whatsappUrl } from "./whatsapp";
+import { parseWhatsAppActionData, whatsappActionData, whatsappInteractiveMessage } from "./whatsapp";
 
-describe("WhatsApp helpers", () => {
-  it("normalizes a Peruvian mobile number", () => {
-    expect(normalizeWhatsAppPhone("987 654 321")).toBe("51987654321");
-    expect(normalizeWhatsAppPhone("+51 987 654 321")).toBe("51987654321");
+const draftId = "33333333-3333-4333-8333-333333333333";
+
+describe("WhatsApp interactive messages", () => {
+  it("uses reply buttons for up to three actions", () => {
+    const message = whatsappInteractiveMessage([
+      { text: "✅ Confirmar", action: "CONFIRM", draftId },
+      { text: "🗑 Descartar", action: "REJECT", draftId }
+    ]);
+    expect(message?.interactive.type).toBe("button");
+    expect(message?.interactive.action.buttons).toHaveLength(2);
+    expect(message?.interactive.action.buttons?.[0]?.reply.id).toBe(whatsappActionData("CONFIRM", draftId));
   });
 
-  it("builds a wa.me URL", () => {
-    expect(whatsappUrl("987654321", "Hola mundo")).toBe("https://wa.me/51987654321?text=Hola%20mundo");
+  it("uses a list when entity resolution needs more than three actions", () => {
+    const message = whatsappInteractiveMessage([
+      { text: "✅ Crear clienta", action: "CREATE_CUSTOMER", draftId },
+      { text: "Usar Vestido A", action: "SELECT_PRODUCT", draftId, optionIndex: 0 },
+      { text: "Usar Vestido B", action: "SELECT_PRODUCT", draftId, optionIndex: 1 },
+      { text: "➕ Crear producto", action: "CREATE_PRODUCT", draftId }
+    ]);
+    expect(message?.interactive.type).toBe("list");
+    expect(message?.interactive.action.sections?.[0]?.rows).toHaveLength(4);
   });
 
-  it("includes ready state and balance in the customer message", () => {
-    const message = customerOrderMessage({ customerName: "Diana Milagros", orderNumber: "P-00010", status: "READY_FOR_DELIVERY", balance: 120 });
-    expect(message).toContain("Hola Diana");
-    expect(message).toContain("listo para entregar");
-    expect(message).toContain("S/ 120.00");
+  it("parses button and list reply identifiers using the capture contract", () => {
+    expect(parseWhatsAppActionData(whatsappActionData("CREATE_PRODUCT", draftId) ?? "")).toEqual({ action: "CREATE_PRODUCT", draftId });
+    expect(parseWhatsAppActionData("invalid")).toBeNull();
   });
 });
