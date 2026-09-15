@@ -5,7 +5,7 @@
 ## Base productiva
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `022703566033fb8c8fec13314985631951f2e938`
+- SHA desplegado: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`
 - Estado: PASS en health, smoke autenticado HTTPS, migraciones 16/16, E2E, concurrencia/idempotencia, multi-turno, stock negativo, Telegram simulado, botones de resolución y Docker.
 - OpenClaw no forma parte del runtime.
 
@@ -28,14 +28,14 @@ El E2E cubre creación de cliente, pedido, adelanto, corte con descuento de stoc
 ## Último candidato desplegado
 
 - Rama: `qa/miniERP-telegram-entity-resolution`.
-- SHA exacto: `022703566033fb8c8fec13314985631951f2e938`.
+- SHA exacto: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`.
 - Estado: QA remoto PASS y desplegado exactamente en producción.
 
 Validación local actual:
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 61/61.
+- Vitest: PASS, 64/64.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 
@@ -50,11 +50,12 @@ Validación local actual:
 - [x] Confirmar ausencia de referencias OpenClaw en el runtime.
 - [x] Docker build, backup, deploy exacto, migraciones productivas, health y smoke autenticado.
 
-## Candidato actual — parser de captura Telegram
+## Candidato actual — WhatsApp Cloud API
 
-- SHA exacto: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`.
-- Corrige respuestas aisladas de talla y separa el nombre explícito de la clienta del resto del pedido.
-- Añade tres regresiones del parser; validación local: 64/64.
+- Rama: `feat/miniERP-whatsapp-cloud-api`.
+- SHA exacto: `f2a12ba197345f5f019b56d0bde98909eecebb28`.
+- Añade webhook directo para WhatsApp Cloud API, firma HMAC, allowlist, idempotencia conversacional, texto, botones y listas.
+- Validación local actual: 70/70 pruebas; Docker, PostgreSQL y deploy pendientes de OpenClaw.
 - Estado: QA/deploy pendiente; producción no debe tocarse desde Codex.
 
 ## QA de Telegram real — pendiente separado
