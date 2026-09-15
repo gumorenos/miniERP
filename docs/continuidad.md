@@ -13,16 +13,17 @@
 ## Estado productivo
 
 - URL: `https://prueba.gumorenos.space`
-- SHA desplegado: `022703566033fb8c8fec13314985631951f2e938`
-- Último resultado: PASS en QA/deploy, 61 tests, migraciones 16/16, E2E, concurrencia/idempotencia, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
-- Backup previo validado: `backups/minierp-prod-pre-65944069ca7b-20260905T155051-0500.dump`.
-- Producción quedó desplegada exactamente en `022703566…`; no fue necesario rollback.
+- SHA desplegado: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`
+- Último resultado: PASS en QA/deploy, 64 tests, migraciones 16/16, E2E, concurrencia/idempotencia, Telegram simulado, Docker, backup, health y smoke autenticado HTTPS.
+- Backup previo validado: `backups/minierp-prod-pre-022703566033-20260915T083550-0500.dump`.
+- Producción quedó desplegada exactamente en `291aeb1…`; no fue necesario rollback.
 
 ## Candidato actual
 
-- Rama: `qa/miniERP-telegram-entity-resolution`.
-- SHA funcional exacto remoto: `291aeb1eab75a2222c0bf577d45b3dbcd4f60953`.
-- Estado: candidato publicado; QA remoto/deploy pendientes. OpenClaw debe probar exactamente este SHA, no el HEAD posterior de la rama.
+- `main` ya contiene el release de Telegram y su documentación; HEAD actual: `b3315608…`.
+- Rama: `feat/miniERP-whatsapp-cloud-api`.
+- SHA funcional exacto remoto: `f2a12ba197345f5f019b56d0bde98909eecebb28`.
+- Estado: candidato de WhatsApp publicado; QA remoto/deploy pendientes. OpenClaw debe probar exactamente este SHA, no el HEAD de otra rama.
 
 Incluye:
 
@@ -45,19 +46,18 @@ Incluye:
 
 - ESLint: PASS.
 - TypeScript: PASS.
-- Vitest: PASS, 64/64 pruebas.
+- Vitest: PASS, 70/70 pruebas.
 - Build Vite: PASS.
 - `git diff --check`: PASS.
 - QA remoto/OpenClaw del candidato: pendiente.
 
 ## Próximo orden de trabajo
 
-1. Ejecutar QA y deploy condicionado del SHA `291aeb1…` mediante OpenClaw.
-2. Probar manualmente con el bot autorizado y la UI interna los botones de cliente/producto, sin confirmar operaciones reales.
+1. Ejecutar QA y deploy condicionado del adaptador WhatsApp, SHA `f2a12ba…`, mediante OpenClaw.
+2. Verificar el webhook Meta y probar texto, multi-turno, botones/lista, replay y rechazo con datos sintéticos.
 3. Observar el uso real y ajustar parser/preguntas con evidencia.
-4. Implementar el adaptador oficial de WhatsApp reutilizando el núcleo conversacional.
-5. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
-6. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
+4. Evaluar audio, imágenes y adjuntos después de estabilizar el flujo textual.
+5. Atender hardening operativo: Cloudflare Access, backups automatizados/restore periódico, CSRF explícito y gestión de secretos.
 
 ## Riesgos heredados para vigilar
 
