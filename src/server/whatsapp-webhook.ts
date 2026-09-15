@@ -1,9 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { parseWhatsAppActionData, whatsappInteractiveMessage, type WhatsAppCaptureButton } from "../domain/whatsapp";
+import { normalizeWhatsAppPhone, parseWhatsAppActionData, whatsappInteractiveMessage, type WhatsAppCaptureButton } from "../domain/whatsapp";
 import {
-  isTelegramUserAllowed,
   telegramDraftButtons,
   telegramDraftText,
   telegramHelpText,
@@ -72,7 +71,7 @@ function isUuid(value: string) {
 }
 
 export function normalizeWhatsAppPhoneNumber(value: string | number) {
-  return String(value).replace(/\D/g, "");
+  return normalizeWhatsAppPhone(String(value)) ?? "";
 }
 
 export function parseWhatsAppAllowedPhoneNumbers(value: string | undefined) {
@@ -335,7 +334,7 @@ export async function handleWhatsAppWebhook(request: Request, env: Record<string
     return errorResponse("Actualización de WhatsApp inválida.", 400);
   }
   const events = parseWhatsAppUpdate(update).filter((event) => event.kind !== "unsupported");
-  const allowedEvents = events.filter((event) => isTelegramUserAllowed(event.from, config.allowedPhoneNumbers));
+  const allowedEvents = events.filter((event) => config.allowedPhoneNumbers.has(normalizeWhatsAppPhoneNumber(event.from)));
   if (!allowedEvents.length) return json({ ok: true, type: "IGNORED" });
   if (allowedEvents.some((event) => !allowPhoneRequest(event.from))) return errorResponse("Demasiados mensajes; intenta nuevamente en un minuto.", 429);
 
